@@ -63,10 +63,13 @@ bool mem::Detour32(void* src, void* dst, int len)
 uintptr_t mem::FindDMAAddy(uintptr_t ptr, const std::vector<unsigned int>& offsets)
 {
 	uintptr_t addr = ptr;
+	std::cout << "being in FindDMAAddy loop\n";
 	for (const auto& offset : offsets)
 	{
+		std::cout << "In the loop " << offset << std::endl;
 		addr = *(uintptr_t*)addr;
 		addr += offset;
 	}
+	std::cout << "Exit FindDMAAddy\n";
 	return addr;
 }

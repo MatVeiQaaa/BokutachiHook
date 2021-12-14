@@ -9,15 +9,18 @@
 #include <BokutachiHook/framework.h>
 #include <BokutachiHook/mem.h>
 #include <BokutachiHook/JSON.h>
+#include <BokutachiHook/winver.h>
 
-//#define BOKUTACHI_CONSOLE_ENABLED
-
+//#define DEBUG_CONSOLE_ENABLED
 
 constexpr unsigned int SCORE_OFFSET = 0x6B1548;
 
 uintptr_t moduleBase = (uintptr_t)GetModuleHandle("LR2body.exe");
-uintptr_t scoreAddr = mem::FindDMAAddy(moduleBase + SCORE_OFFSET, { 0x4 });
+uintptr_t scoreAddr = 0x18715C;
 uintptr_t playerAddr = 0xEF784;
+
+double winver = 0;
+unsigned int win10Offset = 0;
 
 struct scoreStruct
 {
@@ -108,6 +111,7 @@ void SendPOST(const std::string reqBody)
 	}
 	curl_easy_cleanup(request);
 	curl_slist_free_all(headerPOST);
+	std::cout << "SendPOST exit\n";
 }
 
 void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[])
@@ -138,26 +142,43 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 	};
 
 	std::string reqBody = scorePacket.dump();
+	std::cout << "SendPOST call\n";
 	SendPOST(std::move(reqBody));
+	std::cout << "FormJSON exit\n";
 }
 
 
 void DumpData()
 {
-	uintptr_t md5Addr = mem::FindDMAAddy(moduleBase + 0x2C05C, { 0x18, 0x8, 0x0 });
+	std::cout << "DumpData start\n";
+	uintptr_t md5Addr;
+	if (winver < 10)
+	{
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x2C05C, { 0x18, 0x8, 0x0 });
+	}
+	else
+	{
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x2D8A3C, { 0x4D8, 0x100, 0x20, 0x0, 0x0 });
+	}
+	std::cout << "finddmaaddy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
+	std::cout << "memcpy md5 done\n";
 	md5[32] = '\0';
 
 	scoreStruct scoreData;
-	memcpy(&scoreData, (int*)scoreAddr, sizeof(scoreData));
+	memcpy(&scoreData, (int*)(scoreAddr + win10Offset), sizeof(scoreData));
+	std::cout << "memcpy scoreData done\n";
 	playerStruct playerData;
-	memcpy(&playerData, (int*)playerAddr, sizeof(playerData));
-
+	memcpy(&playerData, (int*)(playerAddr + win10Offset), sizeof(playerData));
+	std::cout << "memcpy playerData done\n";
+	std::cout << "FormJSON call\n";
 	FormJSON(std::move(scoreData), std::move(playerData), md5);
+	std::cout << "DumpData exit\n";
 }
 
 void ThreadStarter()
 {
+	std::cout << "DumpData thread start\n";
 	std::thread dumpThread(DumpData);
 	dumpThread.detach();
 }
@@ -165,13 +186,21 @@ void ThreadStarter()
 
 DWORD WINAPI HackThread(HMODULE hModule)
 {
-#ifdef BOKUTACHI_CONSOLE_ENABLED
+#ifdef DEBUG_CONSOLE_ENABLED
 	AllocConsole();
 	FILE* f = nullptr;
 	freopen_s(&f, "CONOUT$", "w", stdout);
 
 	std::cout << "OG for a fee, stay sippin' fam\n";
 #endif
+	winver = getSysOpType();
+	//winver = 10;
+	if (winver >= 10)
+	{
+		win10Offset = 0x10000;
+	}
+	std::cout << "winver: " << winver << std::endl;
+	std::cout << "win10Offset: " << win10Offset << std::endl;
 	json config;
 	{
 		std::ifstream conf("BokutachiAuth.json");
@@ -181,9 +210,10 @@ DWORD WINAPI HackThread(HMODULE hModule)
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
 	mem::Detour32((void*)(moduleBase + 0x45C17), (void*)&ThreadStarter, 5); // 0x203EB send with LR2IR, replaced 6 bytes
+	std::cout << "Detour32 executed\n";
 
 
-#ifdef BOKUTACHI_CONSOLE_ENABLED
+#ifdef DEBUG_CONSOLE_ENABLED
 	while (true)
 	{
 	}
