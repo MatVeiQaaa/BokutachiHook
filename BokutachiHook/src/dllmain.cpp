@@ -154,13 +154,13 @@ void DumpData()
 	uintptr_t md5Addr;
 	if (winver < 10)
 	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x2C05C, { 0x18, 0x8, 0x0 });
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x6B064C, { 0xB8, 0x20, 0x0, 0x0 });
 	}
 	else
 	{
 		md5Addr = mem::FindDMAAddy(moduleBase + 0x2D8A3C, { 0x4D8, 0x100, 0x20, 0x0, 0x0 });
 	}
-	std::cout << "finddmaaddy md5\n";
+	std::cout << "memcpy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
 	std::cout << "memcpy md5 done\n";
 	md5[32] = '\0';
