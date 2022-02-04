@@ -1,5 +1,6 @@
 #include <BokutachiLauncher/Injector.h>
 #include <iostream>
+#include <fstream>
 #include <Windows.h>
 #include <TlHelp32.h>
 
@@ -32,6 +33,9 @@ static DWORD GetProcId(const char* procName)
 
 int Injector()
 {
+	std::ofstream out("BokutachiHook.log");
+	std::cout.rdbuf(out.rdbuf());
+
 	constexpr const char* dllPath = "BokutachiHook.dll";
 	constexpr const char* procName = "LR2body.exe";
 	DWORD procId = 0;
@@ -39,7 +43,18 @@ int Injector()
 	procId = GetProcId(procName);
 	if (procId == 0)
 	{
-		std::cout << "Couldn't find LR2body.exe process\n";
+		procId = GetProcId("LRHbody.exe");
+		if (procId == 0)
+		{
+			std::cout << "Couldn't find LR2body.exe process\n";
+			return 1;
+		}
+	}
+
+	procId = GetProcId("LRHbody.exe");
+	if (procId == 0)
+	{
+		std::cout << "Couldn't find LRHbody.exe process\n";
 		return 1;
 	}
 

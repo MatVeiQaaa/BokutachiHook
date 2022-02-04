@@ -13,9 +13,11 @@
 
 //#define DEBUG_CONSOLE_ENABLED
 
+std::ofstream out;
+
 constexpr unsigned int SCORE_OFFSET = 0x6B1548;
 
-uintptr_t moduleBase = (uintptr_t)GetModuleHandle("LR2body.exe");
+uintptr_t moduleBase;
 uintptr_t scoreAddr = 0x18715C;
 uintptr_t playerAddr = 0xEF784;
 
@@ -85,6 +87,7 @@ std::string apiKey;
 
 void SendPOST(const std::string reqBody)
 {
+	std::cout.rdbuf(out.rdbuf());
 
 	CURL* request = curl_easy_init();
 	if (request == nullptr)
@@ -116,6 +119,7 @@ void SendPOST(const std::string reqBody)
 
 void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[])
 {
+	std::cout.rdbuf(out.rdbuf());
 	json scorePacket;
 	scorePacket = {
 		{"md5", md5},
@@ -150,6 +154,8 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 
 void DumpData()
 {
+	std::cout.rdbuf(out.rdbuf());
+
 	std::cout << "DumpData start\n";
 	uintptr_t md5Addr;
 	if (winver < 10)
@@ -178,6 +184,8 @@ void DumpData()
 
 void ThreadStarter()
 {
+	std::cout.rdbuf(out.rdbuf());
+
 	std::cout << "DumpData thread start\n";
 	std::thread dumpThread(DumpData);
 	dumpThread.detach();
@@ -186,6 +194,9 @@ void ThreadStarter()
 
 DWORD WINAPI HackThread(HMODULE hModule)
 {
+	out.open("BokutachiHook.log", std::ofstream::out | std::ofstream::app);
+	std::cout.rdbuf(out.rdbuf());
+
 #ifdef DEBUG_CONSOLE_ENABLED
 	AllocConsole();
 	FILE* f = nullptr;
@@ -193,6 +204,11 @@ DWORD WINAPI HackThread(HMODULE hModule)
 
 	std::cout << "OG for a fee, stay sippin' fam\n";
 #endif
+	if ((moduleBase = (uintptr_t)GetModuleHandle("LR2body.exe")) == 0)
+	{
+		moduleBase = (uintptr_t)GetModuleHandle("LRHbody.exe");
+	}
+
 	winver = getSysOpType();
 	//winver = 10;
 	if (winver >= 10)

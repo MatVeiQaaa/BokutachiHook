@@ -7,6 +7,9 @@ using json = nlohmann::ordered_json;
 
 int GetAuth()
 {
+	std::ofstream out("BokutachiHook.log");
+	std::cout.rdbuf(out.rdbuf());
+
 	std::ifstream conf("BokutachiAuth.json");
 	if (!conf.good())
 	{

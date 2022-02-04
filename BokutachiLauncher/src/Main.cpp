@@ -2,6 +2,7 @@
 #include <BokutachiLauncher/LaunchGame.h>
 #include <BokutachiLauncher/GetAuth.h>
 #include <iostream>
+#include <fstream>
 
 static void PrintError()
 {
@@ -11,6 +12,10 @@ static void PrintError()
 
 int main()
 {
+	std::ofstream out("BokutachiHook.log");
+	std::cout.rdbuf(out.rdbuf());
+
+
 	if (GetAuth() != 0)
 	{
 		PrintError();
