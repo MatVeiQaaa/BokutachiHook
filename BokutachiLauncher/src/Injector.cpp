@@ -51,13 +51,6 @@ int Injector()
 		}
 	}
 
-	procId = GetProcId("LRHbody.exe");
-	if (procId == 0)
-	{
-		std::cout << "Couldn't find LRHbody.exe process\n";
-		return 1;
-	}
-
 	HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, 0, procId);
 
 	if (hProc == nullptr || hProc == INVALID_HANDLE_VALUE)
