@@ -13,8 +13,6 @@
 
 //#define DEBUG_CONSOLE_ENABLED
 
-std::ofstream out;
-
 constexpr unsigned int SCORE_OFFSET = 0x6B1548;
 
 uintptr_t moduleBase;
@@ -77,7 +75,9 @@ constexpr unsigned int PLAYER_STRUCT_SIZE = 528;
 static_assert(sizeof(playerStruct) == PLAYER_STRUCT_SIZE, "Incorrect player struct size");
 
 char md5[33];
+char md5Dan[129];
 constexpr unsigned int MD5_SIZE = 32;
+constexpr unsigned int MD5DAN_SIZE = 128;
 constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", "FULL COMBO" };
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
@@ -87,8 +87,6 @@ std::string apiKey;
 
 void SendPOST(const std::string reqBody)
 {
-	std::cout.rdbuf(out.rdbuf());
-
 	CURL* request = curl_easy_init();
 	if (request == nullptr)
 	{
@@ -119,7 +117,6 @@ void SendPOST(const std::string reqBody)
 
 void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[])
 {
-	std::cout.rdbuf(out.rdbuf());
 	json scorePacket;
 	scorePacket = {
 		{"md5", md5},
@@ -154,23 +151,28 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 
 void DumpData()
 {
-	std::cout.rdbuf(out.rdbuf());
-
 	std::cout << "DumpData start\n";
 	uintptr_t md5Addr;
 	if (winver < 10)
 	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x6B064C, { 0xB8, 0x20, 0x0, 0x0 });
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x10, 0x0 });
 	}
 	else
 	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x2D8A3C, { 0x4D8, 0x100, 0x20, 0x0, 0x0 });
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x10, 0x0 });
 	}
 	std::cout << "memcpy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
 	std::cout << "memcpy md5 done\n";
 	md5[32] = '\0';
-
+	bool isDan = false;
+	if (strcmp(md5, "00000000002000000000000000005190") == 0)
+	{
+		std::cout << "md5 is dan" << std::endl;
+		memcpy(md5Dan, (int*)md5Addr + 8, MD5DAN_SIZE);
+		md5Dan[128] = '\0';
+		isDan = true;
+	}
 	scoreStruct scoreData;
 	memcpy(&scoreData, (int*)(scoreAddr + win10Offset), sizeof(scoreData));
 	std::cout << "memcpy scoreData done\n";
@@ -178,14 +180,19 @@ void DumpData()
 	memcpy(&playerData, (int*)(playerAddr + win10Offset), sizeof(playerData));
 	std::cout << "memcpy playerData done\n";
 	std::cout << "FormJSON call\n";
-	FormJSON(std::move(scoreData), std::move(playerData), md5);
+	if (!isDan)
+	{
+		FormJSON(std::move(scoreData), std::move(playerData), md5);
+	}
+	else
+	{
+		FormJSON(std::move(scoreData), std::move(playerData), md5Dan);
+	}
 	std::cout << "DumpData exit\n";
 }
 
 void ThreadStarter()
 {
-	std::cout.rdbuf(out.rdbuf());
-
 	std::cout << "DumpData thread start\n";
 	std::thread dumpThread(DumpData);
 	dumpThread.detach();
@@ -194,9 +201,6 @@ void ThreadStarter()
 
 DWORD WINAPI HackThread(HMODULE hModule)
 {
-	out.open("BokutachiHook.log", std::ofstream::out | std::ofstream::app);
-	std::cout.rdbuf(out.rdbuf());
-
 #ifdef DEBUG_CONSOLE_ENABLED
 	AllocConsole();
 	FILE* f = nullptr;

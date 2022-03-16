@@ -69,6 +69,7 @@ uintptr_t mem::FindDMAAddy(uintptr_t ptr, const std::vector<unsigned int>& offse
 		std::cout << "In the loop " << offset << std::endl;
 		addr = *(uintptr_t*)addr;
 		addr += offset;
+		std::cout << (int*)addr << std::endl;
 	}
 	std::cout << "Exit FindDMAAddy\n";
 	return addr;
