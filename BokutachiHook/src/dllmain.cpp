@@ -82,10 +82,12 @@ constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", 
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
 constexpr const char* randomModes[6] = { "NORAN", "MIRROR", "RAN", "S-RAN", "H-RAN", "ALLSCR" };
+bool isDan;
 std::string url;
+std::string urlDan;
 std::string apiKey;
 
-void SendPOST(const std::string reqBody)
+void SendPOST(const std::string reqBody, bool isDan)
 {
 	CURL* request = curl_easy_init();
 	if (request == nullptr)
@@ -97,7 +99,10 @@ void SendPOST(const std::string reqBody)
 	struct curl_slist* headerPOST = nullptr;
 	headerPOST = curl_slist_append(headerPOST, "Content-Type: application/json");
 	headerPOST = curl_slist_append(headerPOST, apiKey.c_str());
-	curl_easy_setopt(request, CURLOPT_URL, url.c_str());
+	if (!isDan)
+		curl_easy_setopt(request, CURLOPT_URL, url.c_str());
+	else
+		curl_easy_setopt(request, CURLOPT_URL, urlDan.c_str());
 	curl_easy_setopt(request, CURLOPT_HTTPHEADER, headerPOST);
 	curl_easy_setopt(request, CURLOPT_POSTFIELDS, reqBody.c_str());
 	curl_easy_setopt(request, CURLOPT_CUSTOMREQUEST, "POST");
@@ -115,7 +120,7 @@ void SendPOST(const std::string reqBody)
 	std::cout << "SendPOST exit\n";
 }
 
-void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[])
+void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[], bool isDan)
 {
 	json scorePacket;
 	scorePacket = {
@@ -144,7 +149,7 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 
 	std::string reqBody = scorePacket.dump();
 	std::cout << "SendPOST call\n";
-	SendPOST(std::move(reqBody));
+	SendPOST(std::move(reqBody), isDan);
 	std::cout << "FormJSON exit\n";
 }
 
@@ -154,19 +159,15 @@ void DumpData()
 	std::cout << "DumpData start\n";
 	uintptr_t md5Addr;
 	if (winver < 10)
-	{
 		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x10, 0x0 });
-	}
 	else
-	{
 		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x10, 0x0 });
-	}
 	std::cout << "memcpy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
 	std::cout << "memcpy md5 done\n";
 	md5[32] = '\0';
-	bool isDan = false;
-	if (strcmp(md5, "00000000002000000000000000005190") == 0)
+	isDan = false;
+	if (strncmp(md5, "00000000002000000000000000005190", 16) == 0)
 	{
 		std::cout << "md5 is dan" << std::endl;
 		memcpy(md5Dan, (int*)md5Addr + 8, MD5DAN_SIZE);
@@ -181,13 +182,9 @@ void DumpData()
 	std::cout << "memcpy playerData done\n";
 	std::cout << "FormJSON call\n";
 	if (!isDan)
-	{
-		FormJSON(std::move(scoreData), std::move(playerData), md5);
-	}
+		FormJSON(std::move(scoreData), std::move(playerData), md5, isDan);
 	else
-	{
-		FormJSON(std::move(scoreData), std::move(playerData), md5Dan);
-	}
+		FormJSON(std::move(scoreData), std::move(playerData), md5Dan, isDan);
 	std::cout << "DumpData exit\n";
 }
 
@@ -227,9 +224,10 @@ DWORD WINAPI HackThread(HMODULE hModule)
 		config = json::parse(conf);
 	}
 	url = config.at("url");
+	urlDan = config.at("urlDan");
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
-	mem::Detour32((void*)(moduleBase + 0x45C17), (void*)&ThreadStarter, 5); // 0x203EB send with LR2IR, replaced 6 bytes
+	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&ThreadStarter, 6); // 0x203EB send with LR2IR, replaced 6 bytes
 	std::cout << "Detour32 executed\n";
 
 

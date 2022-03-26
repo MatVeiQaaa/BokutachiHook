@@ -23,35 +23,35 @@ bool mem::Detour32(void* src, void* dst, int len)
 	VirtualProtect(src, len, PAGE_EXECUTE_READWRITE, &curProtection);
 
 	// Allocating memory for stolen bytes.
-	void* gateway = VirtualAlloc(0, len + CALL_SIZE + CALL_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
+	void* gateway = VirtualAlloc(0, len + CALL_SIZE + JMP_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
 	if (gateway == nullptr)
 	{
 		std::cout << "Couldn't allocate memory for stolen bytes\n";
 		return false;
 	}
 
-	// Copying stolen bytes to allocated memory.
-	std::memcpy(gateway, src, len);
-
-	// Filling the source with NOPs (needed for len > 5).
-	std::memset(src, NOP, len);
-
 	// Calculating relative addresses for JMP from source, CALL from gateway and JMP from gateway.
 	uintptr_t relativeAddress = ((uintptr_t)gateway - (uintptr_t)src) - CALL_SIZE;
 	intptr_t  gatewayToSourceRelativeAddr = (intptr_t)src - (intptr_t)gateway - CALL_SIZE - JMP_SIZE;
-	intptr_t  gatewayToDestinationRelativeAddr = (intptr_t)dst - (intptr_t)gateway - CALL_SIZE - JMP_SIZE;
+	intptr_t  gatewayToDestinationRelativeAddr = (intptr_t)dst - (intptr_t)gateway - CALL_SIZE;
+
+	// Setting the CALL to destination up.
+	*(char*)((uintptr_t)gateway) = CALL;
+	*(uintptr_t*)((uintptr_t)gateway + 1) = gatewayToDestinationRelativeAddr;
+
+	// Copying stolen bytes to allocated memory.
+	std::memcpy((void*)((uintptr_t)gateway + CALL_SIZE), src, len);
+
+	// Filling the source with NOPs (needed for len > 5).
+	std::memset(src, NOP, len);
 
 	// Setting the JMP from source up.
 	*(BYTE*)src = JMP;
 	*(uintptr_t*)((uintptr_t)src + 1) = relativeAddress;
 
-	// Restoring original page protection for source
+	// Restoring original page protection for source.
 	DWORD temp;
 	VirtualProtect(src, len, curProtection, &temp);
-
-	// Setting the CALL to destination up.
-	*(char*)((uintptr_t)gateway + len) = CALL;
-	*(uintptr_t*)((uintptr_t)gateway + len + 1) = gatewayToDestinationRelativeAddr;
 
 	// Setting the JMP back from gateway up.
 	*(uintptr_t*)((uintptr_t)gateway + len + 5) = JMP;
