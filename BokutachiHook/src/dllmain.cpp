@@ -224,7 +224,7 @@ DWORD WINAPI HackThread(HMODULE hModule)
 		config = json::parse(conf);
 	}
 	url = config.at("url");
-	urlDan = config.at("urlDan");
+	urlDan = url + "/course";
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
 	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&ThreadStarter, 6); // 0x203EB send with LR2IR, replaced 6 bytes
