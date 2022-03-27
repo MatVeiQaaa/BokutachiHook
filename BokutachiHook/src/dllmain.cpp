@@ -78,6 +78,7 @@ char md5[33];
 char md5Dan[129];
 constexpr unsigned int MD5_SIZE = 32;
 constexpr unsigned int MD5DAN_SIZE = 128;
+int lamp;
 constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", "FULL COMBO" };
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
@@ -120,8 +121,11 @@ void SendPOST(const std::string reqBody, bool isDan)
 	std::cout << "SendPOST exit\n";
 }
 
-void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[], bool isDan)
+void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[], bool isDan, int lamp)
 {
+	std::cout << "in FormJSON" << std::endl;
+	std::cout << md5 << std::endl;
+	std::cout << lamp << std::endl;
 	json scorePacket;
 	scorePacket = {
 		{"md5", md5},
@@ -142,7 +146,7 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 					{"moneyScore", scoreData.moneyScore},
 					{"notesTotal", scoreData.notestotal},
 					{"notesPlayed", scoreData.notesplayed},
-					{"lamp", lamps[scoreData.lamp]},
+					{"lamp", lamps[lamp]},
 					{"hpGraph", scoreData.hpgraph}
 					}}
 	};
@@ -158,16 +162,24 @@ void DumpData()
 {
 	std::cout << "DumpData start\n";
 	uintptr_t md5Addr;
+	uintptr_t lampAddr;
 	if (winver < 10)
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x10, 0x0 });
+	{
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x44, 0x0 });
+		lampAddr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x320 });
+	}
 	else
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x10, 0x0 });
+	{
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x44, 0x0 });
+		lampAddr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x320 });
+	}
+	lamp = *(int*)lampAddr;
 	std::cout << "memcpy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
 	std::cout << "memcpy md5 done\n";
 	md5[32] = '\0';
 	isDan = false;
-	if (strncmp(md5, "00000000002000000000000000005190", 16) == 0)
+	if (strncmp(md5, "0000000000200000000000000000????", 16) == 0) // The "????" would be different depending on what dan is played (stella/satellite/genoside)."
 	{
 		std::cout << "md5 is dan" << std::endl;
 		memcpy(md5Dan, (int*)md5Addr + 8, MD5DAN_SIZE);
@@ -182,19 +194,11 @@ void DumpData()
 	std::cout << "memcpy playerData done\n";
 	std::cout << "FormJSON call\n";
 	if (!isDan)
-		FormJSON(std::move(scoreData), std::move(playerData), md5, isDan);
+		FormJSON(std::move(scoreData), std::move(playerData), md5, isDan, lamp);
 	else
-		FormJSON(std::move(scoreData), std::move(playerData), md5Dan, isDan);
+		FormJSON(std::move(scoreData), std::move(playerData), md5Dan, isDan, lamp);
 	std::cout << "DumpData exit\n";
 }
-
-void ThreadStarter()
-{
-	std::cout << "DumpData thread start\n";
-	std::thread dumpThread(DumpData);
-	dumpThread.detach();
-}
-
 
 DWORD WINAPI HackThread(HMODULE hModule)
 {
@@ -227,7 +231,7 @@ DWORD WINAPI HackThread(HMODULE hModule)
 	urlDan = url + "/course";
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
-	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&ThreadStarter, 6); // 0x203EB send with LR2IR, replaced 6 bytes
+	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&DumpData, 6);
 	std::cout << "Detour32 executed\n";
 
 
