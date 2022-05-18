@@ -1,14 +1,14 @@
 #include <curl/curl.h>
 
+#include <cstdint>
 #include <fstream>
 #include <iostream>
 #include <thread>
-#include <cstdint>
 #include <utility>
 
+#include <BokutachiHook/JSON.h>
 #include <BokutachiHook/framework.h>
 #include <BokutachiHook/mem.h>
-#include <BokutachiHook/JSON.h>
 #include <BokutachiHook/winver.h>
 
 //#define DEBUG_CONSOLE_ENABLED

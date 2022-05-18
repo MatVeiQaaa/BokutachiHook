@@ -1,7 +1,9 @@
 #include <BokutachiLauncher/LaunchGame.h>
-#include <Windows.h>
+
 #include <fstream>
 #include <iostream>
+
+#include <windows.h>
 
 int LaunchGame()
 {

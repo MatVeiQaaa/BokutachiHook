@@ -1,8 +1,11 @@
 #include <BokutachiLauncher/Injector.h>
+
 #include <iostream>
 #include <fstream>
-#include <Windows.h>
-#include <TlHelp32.h>
+
+#include <windows.h>
+
+#include <tlhelp32.h>
 
 // Iterate over the list of process names until procName is found.
 static DWORD GetProcId(const char* procName)

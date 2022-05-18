@@ -1,5 +1,11 @@
 #pragma once
 
+#include <BokutachiHook/framework.h>
+
+#include <windows.h>
+
+// FIXME: there a missing `wdm.h` header.
+
 double getSysOpType()
 {
     double ret = 0.0;

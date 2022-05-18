@@ -1,8 +1,9 @@
+#include <fstream>
+#include <iostream>
+
+#include <BokutachiLauncher/GetAuth.h>
 #include <BokutachiLauncher/Injector.h>
 #include <BokutachiLauncher/LaunchGame.h>
-#include <BokutachiLauncher/GetAuth.h>
-#include <iostream>
-#include <fstream>
 
 static void PrintError()
 {
