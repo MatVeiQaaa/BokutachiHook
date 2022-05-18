@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 project(BokutachiHook VERSION 1.0 LANGUAGES CXX)
 
 find_package(nlohmann_json 3.9.0 REQUIRED CONFIG)
-find_package(CURL CONFIG REQUIRED)
+find_package(CURL REQUIRED)
 
 add_library(BokutachiHook
 	SHARED
