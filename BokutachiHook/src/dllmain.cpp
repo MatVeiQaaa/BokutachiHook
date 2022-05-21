@@ -5,6 +5,8 @@
 #include <iostream>
 #include <thread>
 #include <utility>
+#include <chrono>
+#include <ctime>
 
 #include <BokutachiHook/JSON.h>
 #include <BokutachiHook/framework.h>
@@ -90,6 +92,27 @@ std::string url;
 std::string urlDan;
 std::string apiKey;
 
+static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
+{
+	((std::string*)userp)->append((char*)contents, size * nmemb);
+	return size * nmemb;
+}
+
+void Logger(std::string buffer)
+{
+	json log = json::parse(buffer);
+	if (log["success"] == false)
+	{
+		std::ofstream logFile;
+		logFile.open("Bokutachi.log", std::ios_base::app);
+		auto time = std::chrono::system_clock::now();
+		std::time_t timeStamp = std::chrono::system_clock::to_time_t(time);
+		logFile << ctime(&timeStamp) << log["description"];
+		logFile << std::endl << std::endl;
+		logFile.close();
+	}
+}
+
 void SendPOST(const std::string reqBody, bool isDan)
 {
 	CURL* request = curl_easy_init();
@@ -100,6 +123,7 @@ void SendPOST(const std::string reqBody, bool isDan)
 	}
 
 	struct curl_slist* headerPOST = nullptr;
+	std::string readBuffer;
 	headerPOST = curl_slist_append(headerPOST, "Content-Type: application/json");
 	headerPOST = curl_slist_append(headerPOST, apiKey.c_str());
 	if (!isDan)
@@ -109,18 +133,21 @@ void SendPOST(const std::string reqBody, bool isDan)
 	curl_easy_setopt(request, CURLOPT_HTTPHEADER, headerPOST);
 	curl_easy_setopt(request, CURLOPT_POSTFIELDS, reqBody.c_str());
 	curl_easy_setopt(request, CURLOPT_CUSTOMREQUEST, "POST");
+	curl_easy_setopt(request, CURLOPT_WRITEFUNCTION, WriteCallback);
+	curl_easy_setopt(request, CURLOPT_WRITEDATA, &readBuffer);
 
 #pragma warning(push)
 #pragma warning(disable : 26812)
-	CURLcode response = curl_easy_perform(request);
+	CURLcode result = curl_easy_perform(request);
 #pragma warning(pop)
-	if (response != CURLE_OK)
+	if (result != CURLE_OK)
 	{
 		std::cout << "Couldn't perform request\n";
 	}
 	curl_easy_cleanup(request);
 	curl_slist_free_all(headerPOST);
-	std::cout << "SendPOST exit\n";
+	Logger(std::move(readBuffer));
+	std::cout << "SendPOST exit" << std::endl;
 }
 
 void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[], bool isDan)
