@@ -41,7 +41,9 @@ struct scoreStruct
 	std::int32_t moneyScore;
 	std::int32_t unknown5[4];
 	std::int32_t lamp;
-	std::int32_t unknown6[82];
+	std::int32_t unknown6[69];
+	std::int32_t isComplete;
+	std::int32_t unknown7[12];
 	std::int32_t hpgraph[1000];
 };
 constexpr unsigned int SCORE_STRUCT_SIZE = 4664;
@@ -121,11 +123,10 @@ void SendPOST(const std::string reqBody, bool isDan)
 	std::cout << "SendPOST exit\n";
 }
 
-void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[], bool isDan, int lamp)
+void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char md5[], bool isDan)
 {
 	std::cout << "in FormJSON" << std::endl;
 	std::cout << md5 << std::endl;
-	std::cout << lamp << std::endl;
 	json scorePacket;
 	scorePacket = {
 		{"md5", md5},
@@ -146,11 +147,15 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 					{"moneyScore", scoreData.moneyScore},
 					{"notesTotal", scoreData.notestotal},
 					{"notesPlayed", scoreData.notesplayed},
-					{"lamp", lamps[lamp]},
+					{"lamp", lamps[scoreData.lamp]},
 					{"hpGraph", scoreData.hpgraph}
 					}}
 	};
 
+	if (scoreData.isComplete == 0)
+	{
+		scorePacket["scoreData"]["lamp"] = lamps[0];
+	}
 	std::string reqBody = scorePacket.dump();
 	std::cout << "SendPOST call\n";
 	SendPOST(std::move(reqBody), isDan);
@@ -161,31 +166,6 @@ void FormJSON(const scoreStruct scoreData, const playerStruct playerData, char m
 void DumpData()
 {
 	std::cout << "DumpData start\n";
-	uintptr_t md5Addr;
-	uintptr_t lampAddr;
-	if (winver < 10)
-	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x44, 0x0 });
-		lampAddr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x320 });
-	}
-	else
-	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x44, 0x0 });
-		lampAddr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x320 });
-	}
-	lamp = *(int*)lampAddr;
-	std::cout << "memcpy md5\n";
-	memcpy(md5, (int*)md5Addr, MD5_SIZE);
-	std::cout << "memcpy md5 done\n";
-	md5[32] = '\0';
-	isDan = false;
-	if (strncmp(md5, "0000000000200000000000000000????", 16) == 0) // The "????" would be different depending on what dan is played (stella/satellite/genoside)."
-	{
-		std::cout << "md5 is dan" << std::endl;
-		memcpy(md5Dan, (int*)md5Addr + 8, MD5DAN_SIZE);
-		md5Dan[128] = '\0';
-		isDan = true;
-	}
 	scoreStruct scoreData;
 	memcpy(&scoreData, (int*)(scoreAddr + win10Offset), sizeof(scoreData));
 	std::cout << "memcpy scoreData done\n";
@@ -194,11 +174,40 @@ void DumpData()
 	std::cout << "memcpy playerData done\n";
 	std::cout << "FormJSON call\n";
 	if (!isDan)
-		FormJSON(std::move(scoreData), std::move(playerData), md5, isDan, lamp);
+		FormJSON(std::move(scoreData), std::move(playerData), md5, isDan);
 	else
-		FormJSON(std::move(scoreData), std::move(playerData), md5Dan, isDan, lamp);
+		FormJSON(std::move(scoreData), std::move(playerData), md5Dan, isDan);
 	std::cout << "DumpData exit\n";
 }
+
+void ThreadStarter()
+{
+	uintptr_t md5Addr;
+	if (winver < 10)
+	{
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x44, 0x0 });
+	}
+	else
+	{
+		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x44, 0x0 });
+	}
+	std::cout << "memcpy md5\n";
+	memcpy(md5, (int*)md5Addr, MD5_SIZE);
+	std::cout << "memcpy md5 done\n";
+	md5[32] = '\0';
+	isDan = false;
+	if (strncmp(md5, "0000000000200000000000000000????", 16) == 0) // The "????" would be different depending on what dan is played (stella/satellite/genoside).
+	{
+		std::cout << "md5 is dan" << std::endl;
+		memcpy(md5Dan, (int*)md5Addr + 8, MD5DAN_SIZE);
+		md5Dan[128] = '\0';
+		isDan = true;
+	}
+
+	std::thread dumpData(DumpData);
+	dumpData.detach();
+}
+
 
 DWORD WINAPI HackThread(HMODULE hModule)
 {
@@ -228,10 +237,10 @@ DWORD WINAPI HackThread(HMODULE hModule)
 		config = json::parse(conf);
 	}
 	url = config.at("url");
-	urlDan = url + "/course";
+	urlDan = url + "-course";
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
-	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&DumpData, 6);
+	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&ThreadStarter, 6);
 	std::cout << "Detour32 executed\n";
 
 
