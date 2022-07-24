@@ -216,8 +216,18 @@ void ThreadStarter()
 	}
 	else
 	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x01CBFC, { 0x0, 0x0, 0x44, 0x0 });
+		__asm {
+		PUSH EAX
+		PUSH EBX
+		MOV EAX, ESP
+		ADD EAX, 0x88
+		MOV EBX, [EAX]
+		MOV md5Addr, EBX
+		POP EBX
+		POP EAX
+		};
 	}
+
 	std::cout << "memcpy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
 	std::cout << "memcpy md5 done\n";
