@@ -100,16 +100,23 @@ static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* use
 
 void Logger(std::string buffer)
 {
-	json log = json::parse(buffer);
-	if (log["success"] == false)
+	try
 	{
-		std::ofstream logFile;
-		logFile.open("Bokutachi.log", std::ios_base::app);
-		auto time = std::chrono::system_clock::now();
-		std::time_t timeStamp = std::chrono::system_clock::to_time_t(time);
-		logFile << ctime(&timeStamp) << log["description"];
-		logFile << std::endl << std::endl;
-		logFile.close();
+		json log = json::parse(buffer);
+		if (log["success"] == false)
+		{
+			std::ofstream logFile;
+			logFile.open("Bokutachi.log", std::ios_base::app);
+			auto time = std::chrono::system_clock::now();
+			std::time_t timeStamp = std::chrono::system_clock::to_time_t(time);
+			logFile << ctime(&timeStamp) << log["description"];
+			logFile << std::endl << std::endl;
+			logFile.close();
+		}
+	}
+	catch (json::exception &ex)
+	{
+		// what now..?
 	}
 }
 
@@ -274,7 +281,7 @@ DWORD WINAPI HackThread(HMODULE hModule)
 		config = json::parse(conf);
 	}
 	url = config.at("url");
-	urlDan = url + "-course";
+	urlDan = url + "/course";
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
 	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&ThreadStarter, 6);
