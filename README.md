@@ -14,4 +14,4 @@ For the project to work BokutachiAuth.json is required in the root folder,
 containing server URL and an API key - the file can be generated at 
 https://bokutachi.xyz
 
-Bokutachi project source: https://github.com/TNG-dev/Tachu
+Bokutachi project source: https://github.com/TNG-dev/Tachi
