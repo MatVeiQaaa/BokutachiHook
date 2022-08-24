@@ -89,6 +89,41 @@ int Injector()
 		return 1;
 	}
 
+	// Tries to inject LR2GAS.dll.
+	try {
+		loc = VirtualAllocEx(hProc, 0, MAX_PATH, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+		if (loc == nullptr)
+		{
+			std::cout << "Couldn't allocate memory in the remote process\n";
+			throw ("No LR2GAS.dll found");
+		}
+
+		if (WriteProcessMemory(hProc, loc, "LR2GAS.dll", strlen(dllPath) + 1, 0) == 0)
+		{
+			std::cout << "Couldn't write .dll to LR2 memory\n";
+			throw ("No LR2GAS.dll found");
+		}
+
+
+		HANDLE hThread = CreateRemoteThread(hProc, 0, 0, (LPTHREAD_START_ROUTINE)LoadLibraryA, loc, 0, 0);
+
+		if (hThread != nullptr)
+		{
+			CloseHandle(hThread);
+		}
+
+		else
+		{
+			std::cout << "Couldn't start remote thread of the .dll\n";
+			throw ("No LR2GAS.dll found");
+		}
+	}
+	catch (const std::exception GASMissingException)
+	{
+		throw;
+	}
+
+
 	CloseHandle(hProc);
 
 	return 0;
