@@ -13,8 +13,6 @@
 #include <BokutachiHook/mem.h>
 #include <BokutachiHook/winver.h>
 
-//#define DEBUG_CONSOLE_ENABLED
-
 constexpr unsigned int SCORE_OFFSET = 0x6B1548;
 
 uintptr_t moduleBase;
@@ -217,23 +215,31 @@ void DumpData()
 void ThreadStarter()
 {
 	uintptr_t md5Addr;
-	if (winver < 10)
-	{
-		md5Addr = mem::FindDMAAddy(moduleBase + 0x08448C, { 0x18, 0x44, 0x0 });
-	}
-	else
-	{
-		__asm {
+
+#ifdef _DEBUG
+	__asm {
 		PUSH EAX
 		PUSH EBX
 		MOV EAX, ESP
-		ADD EAX, 0x88
+		ADD EAX, 0x74 // You bet this will be wrong if built with different compiler.
 		MOV EBX, [EAX]
 		MOV md5Addr, EBX
 		POP EBX
 		POP EAX
-		};
-	}
+};
+ // DEBUG
+#else
+	__asm {
+		PUSH EAX
+		PUSH EBX
+		MOV EAX, ESP
+		ADD EAX, 0x6C // You bet this will be wrong if built with different compiler.
+		MOV EBX, [EAX]
+		MOV md5Addr, EBX
+		POP EBX
+		POP EAX
+	};
+#endif
 
 	std::cout << "memcpy md5\n";
 	memcpy(md5, (int*)md5Addr, MD5_SIZE);
@@ -252,10 +258,21 @@ void ThreadStarter()
 	dumpData.detach();
 }
 
+void PatchPreviewMemleak()
+{
+	WORD* patchAddr = (WORD*)(moduleBase + 0xB0822);
+	DWORD curProtection;
+	VirtualProtect(patchAddr, sizeof(WORD), PAGE_EXECUTE_READWRITE, &curProtection);
+
+	*patchAddr = (WORD)0x16EB;
+
+	DWORD temp;
+	VirtualProtect(patchAddr, sizeof(WORD), curProtection, &temp);
+}
 
 DWORD WINAPI HackThread(HMODULE hModule)
 {
-#ifdef DEBUG_CONSOLE_ENABLED
+#ifdef _DEBUG
 	AllocConsole();
 	FILE* f = nullptr;
 	freopen_s(&f, "CONOUT$", "w", stdout);
@@ -284,11 +301,12 @@ DWORD WINAPI HackThread(HMODULE hModule)
 	urlDan = url + "/course";
 	apiKey = "Authorization: Bearer ";
 	apiKey += config.at("apiKey");
+	PatchPreviewMemleak();
 	mem::Detour32((void*)(moduleBase + 0x45C1C), (void*)&ThreadStarter, 6);
 	std::cout << "Detour32 executed\n";
 
 
-#ifdef DEBUG_CONSOLE_ENABLED
+#ifdef _DEBUG
 	while (true)
 	{
 	}

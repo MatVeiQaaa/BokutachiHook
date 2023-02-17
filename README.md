@@ -17,3 +17,5 @@ https://bokutachi.xyz
 Bokutachi project source: https://github.com/TNG-dev/Tachi
 
 NOTE: As of v1.5.3 BokutachiLauncher allows the use of GAS (Gauge Auto Shift) optional feature. To enable it you have to put LR2GAS.dll in the Lunatic Rave 2 folder alongside with the launcher. You can get the LR2GAS.dll and project details here: https://github.com/MatVeiQaaa/LR2GAS/releases
+
+Also includes a patch for song preview memory leak, described at https://github.com/jbscj/lr2-memleak-fix
