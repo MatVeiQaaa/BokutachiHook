@@ -273,6 +273,9 @@ static unsigned long long get_stack_offset()
 	if (!ntdll)
 		return 0; // wtf bro
 
+	if (static_cast<void *>(GetProcAddress(ntdll, "wine_get_version")) != nullptr)
+		return 0xA30000; // Wine 10.0
+
 	NTSTATUS(WINAPI * RtlGetVersion)(LPOSVERSIONINFOEXW);
 	OSVERSIONINFOEXW osInfo{};
 
