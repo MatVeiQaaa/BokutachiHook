@@ -11,16 +11,13 @@
 #include <BokutachiHook/JSON.h>
 #include <BokutachiHook/framework.h>
 #include <BokutachiHook/mem.h>
-#include <BokutachiHook/winver.h>
-
-constexpr unsigned int SCORE_OFFSET = 0x6B1548;
 
 uintptr_t moduleBase;
-uintptr_t scoreAddr = 0x18715C;
-uintptr_t playerAddr = 0xEF784;
 
-double winver = 0;
-unsigned int win10Offset = 0;
+static constexpr uintptr_t PLAYER_BASE_ADDR = 0xEF784;
+static constexpr uintptr_t SCORE_BASE_ADDR = 0x18715C;
+
+static unsigned int s_stack_offset = 0;
 
 struct scoreStruct
 {
@@ -199,10 +196,10 @@ void DumpData()
 {
 	std::cout << "DumpData start\n";
 	scoreStruct scoreData;
-	memcpy(&scoreData, (int*)(scoreAddr + win10Offset), sizeof(scoreData));
+	memcpy(&scoreData, (int*)(SCORE_BASE_ADDR + s_stack_offset), sizeof(scoreData));
 	std::cout << "memcpy scoreData done\n";
 	playerStruct playerData;
-	memcpy(&playerData, (int*)(playerAddr + win10Offset), sizeof(playerData));
+	memcpy(&playerData, (int*)(PLAYER_BASE_ADDR + s_stack_offset), sizeof(playerData));
 	std::cout << "memcpy playerData done\n";
 	std::cout << "FormJSON call\n";
 	if (!isDan)
@@ -270,6 +267,31 @@ void PatchPreviewMemleak()
 	VirtualProtect(patchAddr, sizeof(WORD), curProtection, &temp);
 }
 
+static unsigned long long get_stack_offset()
+{
+	HMODULE ntdll = GetModuleHandleA("ntdll");
+	if (!ntdll)
+		return 0; // wtf bro
+
+	if (static_cast<void *>(GetProcAddress(ntdll, "wine_get_version")) != nullptr)
+		return 0xA30000; // Wine 10.0
+
+	NTSTATUS(WINAPI * RtlGetVersion)(LPOSVERSIONINFOEXW);
+	OSVERSIONINFOEXW osInfo{};
+
+	*(FARPROC*)&RtlGetVersion = GetProcAddress(ntdll, "RtlGetVersion");
+	if (RtlGetVersion != nullptr)
+	{
+		osInfo.dwOSVersionInfoSize = sizeof(osInfo);
+		RtlGetVersion(&osInfo);
+	}
+
+	if(osInfo.dwMajorVersion >= 10)
+		return 0x10000;
+
+	return 0;
+}
+
 DWORD WINAPI HackThread(HMODULE hModule)
 {
 #ifdef _DEBUG
@@ -284,14 +306,8 @@ DWORD WINAPI HackThread(HMODULE hModule)
 		moduleBase = (uintptr_t)GetModuleHandle("LRHbody.exe");
 	}
 
-	winver = getSysOpType();
-	//winver = 10;
-	if (winver >= 10)
-	{
-		win10Offset = 0x10000;
-	}
-	std::cout << "winver: " << winver << std::endl;
-	std::cout << "win10Offset: " << win10Offset << std::endl;
+	s_stack_offset = get_stack_offset();
+	std::cout << "s_stack_offset: " << s_stack_offset << std::endl;
 	json config;
 	{
 		std::ifstream conf("BokutachiAuth.json");
