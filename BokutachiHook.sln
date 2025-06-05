@@ -1,0 +1,48 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36109.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BokutachiHook", "BokutachiHook.vcxproj", "{8A2BEC2E-2CE8-1337-10CF-FE3CFB5CD2B3}"
+	ProjectSection(ProjectDependencies) = postProject
+		{5D394D71-148D-C5D5-1D9B-87401262A98C} = {5D394D71-148D-C5D5-1D9B-87401262A98C}
+		{DA6F56B4-06A4-441D-AD70-AC5A7D51FADB} = {DA6F56B4-06A4-441D-AD70-AC5A7D51FADB}
+		{F69A2233-97A0-43B4-A241-957EAF802111} = {F69A2233-97A0-43B4-A241-957EAF802111}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libSafetyhook", "ext\libSafetyhook\libSafetyhook.vcxproj", "{5D394D71-148D-C5D5-1D9B-87401262A98C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LR2Mem", "ext\LR2Mem\LR2Mem.vcxproj", "{F69A2233-97A0-43B4-A241-957EAF802111}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libcurl", "libcurl.vcxproj", "{DA6F56B4-06A4-441D-AD70-AC5A7D51FADB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x86 = Debug|x86
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8A2BEC2E-2CE8-1337-10CF-FE3CFB5CD2B3}.Debug|x86.ActiveCfg = Debug|Win32
+		{8A2BEC2E-2CE8-1337-10CF-FE3CFB5CD2B3}.Debug|x86.Build.0 = Debug|Win32
+		{8A2BEC2E-2CE8-1337-10CF-FE3CFB5CD2B3}.Release|x86.ActiveCfg = Release|Win32
+		{8A2BEC2E-2CE8-1337-10CF-FE3CFB5CD2B3}.Release|x86.Build.0 = Release|Win32
+		{5D394D71-148D-C5D5-1D9B-87401262A98C}.Debug|x86.ActiveCfg = Debug|Win32
+		{5D394D71-148D-C5D5-1D9B-87401262A98C}.Debug|x86.Build.0 = Debug|Win32
+		{5D394D71-148D-C5D5-1D9B-87401262A98C}.Release|x86.ActiveCfg = Release|Win32
+		{5D394D71-148D-C5D5-1D9B-87401262A98C}.Release|x86.Build.0 = Release|Win32
+		{F69A2233-97A0-43B4-A241-957EAF802111}.Debug|x86.ActiveCfg = Debug|Win32
+		{F69A2233-97A0-43B4-A241-957EAF802111}.Debug|x86.Build.0 = Debug|Win32
+		{F69A2233-97A0-43B4-A241-957EAF802111}.Release|x86.ActiveCfg = Release|Win32
+		{F69A2233-97A0-43B4-A241-957EAF802111}.Release|x86.Build.0 = Release|Win32
+		{DA6F56B4-06A4-441D-AD70-AC5A7D51FADB}.Debug|x86.ActiveCfg = LIB Debug - LIB OpenSSL|Win32
+		{DA6F56B4-06A4-441D-AD70-AC5A7D51FADB}.Debug|x86.Build.0 = LIB Debug - LIB OpenSSL|Win32
+		{DA6F56B4-06A4-441D-AD70-AC5A7D51FADB}.Release|x86.ActiveCfg = LIB Release - LIB OpenSSL|Win32
+		{DA6F56B4-06A4-441D-AD70-AC5A7D51FADB}.Release|x86.Build.0 = LIB Release - LIB OpenSSL|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {359DBF0F-F945-4077-8FB0-B971FD2E98DB}
+	EndGlobalSection
+EndGlobal
