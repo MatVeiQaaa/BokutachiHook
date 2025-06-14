@@ -149,11 +149,13 @@ safetyhook::InlineHook oUpdateScoreDB;
 static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql, LR2::CSTR* passMD5) {
 	std::string message = FormJSONString(hash.body);
 	LR2::game& game = *LR2::pGame;
+	std::cout << "[BokutachiHook] Trying to send " << hash.body << "\n";
 	std::thread(SendPOST, std::move(message), (game.gameplay.isCourse && game.gameplay.courseType == 2)).detach();
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 }
 
 void BokutachiHook::Init() {
+	std::cout << "[BokutachiHook] Initializing.\n";
 	LR2::Init();
 	while (!LR2::isInit) Sleep(1);
 
@@ -171,6 +173,8 @@ void BokutachiHook::Init() {
 
 	UpdateScoreDB = (tUpdateScoreDB)(moduleBase + 0x45AF0);
 	oUpdateScoreDB = safetyhook::create_inline(UpdateScoreDB, OnUpdateScoreDB);
+
+	std::cout << "[BokutachiHook] Init Done.\n";
 }
 
 void BokutachiHook::Deinit() {
