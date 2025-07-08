@@ -5,6 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <utility>
+#include <deque>
 
 #include <LR2Mem/LR2Bindings.hpp>
 #include <libSafetyhook/safetyhook.hpp>
@@ -32,6 +33,35 @@ constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", 
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
 constexpr const char* randomModes[6] = { "NORAN", "MIRROR", "RAN", "S-RAN", "H-RAN", "ALLSCR" };
+
+static std::deque<std::pair<const char*, std::chrono::time_point<std::chrono::system_clock>>> notifications;
+
+static void AddNotification(const char* message) {
+	notifications.push_front({ message, std::chrono::system_clock::now() });
+}
+
+static void UpdateNotifications() {
+	std::vector<decltype(notifications.begin())> toDelete;
+	for (auto it = notifications.begin(); it != notifications.end(); it++) {
+		auto& [message, time] = *it;
+		if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - time).count() > 2000) {
+			toDelete.push_back(it);
+		}
+		else {
+			typedef int(__cdecl* tPrintfDx)(const char* fmt, ...);
+			tPrintfDx PrintfDx = (tPrintfDx)0x4C94B0;
+			PrintfDx("%s\n", message);
+		}
+	}
+	for (auto& it : toDelete) {
+		notifications.erase(it);
+	}
+}
+
+static safetyhook::MidHook OnBeforeScreenFlipHk;
+static void OnBeforeScreenFlip(SafetyHookContext& regs) {
+	UpdateNotifications();
+}
 
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
 {
@@ -156,7 +186,6 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 
 void BokutachiHook::Init() {
 	std::cout << "[BokutachiHook] Initializing.\n";
-	LR2::Init();
 	while (!LR2::isInit) Sleep(1);
 
 	moduleBase = (uintptr_t)GetModuleHandle(0);
@@ -174,7 +203,10 @@ void BokutachiHook::Init() {
 	UpdateScoreDB = (tUpdateScoreDB)(moduleBase + 0x45AF0);
 	oUpdateScoreDB = safetyhook::create_inline(UpdateScoreDB, OnUpdateScoreDB);
 
+	OnBeforeScreenFlipHk = safetyhook::create_mid(0x4367C6, OnBeforeScreenFlip);
+
 	std::cout << "[BokutachiHook] Init Done.\n";
+	AddNotification("BokutachiIR Connected!");
 }
 
 void BokutachiHook::Deinit() {

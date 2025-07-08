@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "BokutachiHook.hpp"
+#include <LR2Mem/LR2Bindings.hpp>
 
 static FILE* console_thread = nullptr;
 
@@ -23,6 +24,7 @@ BOOL APIENTRY DllMain(
         while (!IsDebuggerPresent())
             Sleep(100);
 #endif
+        LR2::Init();
         std::thread(BokutachiHook::Init).detach();
 
         break;
