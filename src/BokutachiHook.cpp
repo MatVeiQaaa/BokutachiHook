@@ -1,25 +1,19 @@
-#define CURL_STATICLIB 1
-
 #include "BokutachiHook.hpp"
 
-#include <iostream>
+#include <print>
+#include <format>
 #include <fstream>
-#include <utility>
-#include <deque>
+#include <thread>
+#include <vector>
 
 #include <LR2Mem/LR2Bindings.hpp>
-#include <libSafetyhook/safetyhook.hpp>
-#include <curl/include/curl/curl.h>
+#include <safetyhook.hpp>
+#include <cpr/cpr.h>
 #include <json/single_include/nlohmann/json.hpp>
 
 #pragma comment(lib,"LR2Mem.lib")
-#pragma comment(lib,"libSafetyhook.x86.lib")
-#pragma comment(lib,"ws2_32.lib")
-#pragma comment(lib,"wldap32.lib")
-#pragma comment(lib,"Crypt32.lib")
-#pragma comment(lib,"libcrypto.lib")
-#pragma comment(lib,"libssl.lib")
-#pragma comment(lib,"libcurl.lib")
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "Crypt32.lib")
 
 using json = nlohmann::ordered_json;
 
@@ -29,28 +23,33 @@ static std::string url;
 static std::string urlDan;
 static std::string apiKey;
 
+static int userId = -1;
+
 constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", "FULL COMBO" };
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
 constexpr const char* randomModes[6] = { "NORAN", "MIRROR", "RAN", "S-RAN", "H-RAN", "ALLSCR" };
 
-static std::deque<std::pair<const char*, std::chrono::time_point<std::chrono::system_clock>>> notifications;
+std::mutex notificationsMutex;
+static std::vector<std::pair<std::string, std::chrono::time_point<std::chrono::system_clock>>> notifications;
 
-static void AddNotification(const char* message) {
-	notifications.push_front({ message, std::chrono::system_clock::now() });
+static void AddNotification(std::string message) {
+	const std::lock_guard lock(notificationsMutex);
+	notifications.push_back({ message, std::chrono::system_clock::now() });
 }
 
 static void UpdateNotifications() {
 	std::vector<decltype(notifications.begin())> toDelete;
+	const std::lock_guard lock(notificationsMutex);
 	for (auto it = notifications.begin(); it != notifications.end(); it++) {
 		auto& [message, time] = *it;
-		if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - time).count() > 2000) {
+		if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - time).count() > 3000) {
 			toDelete.push_back(it);
 		}
 		else {
 			typedef int(__cdecl* tPrintfDx)(const char* fmt, ...);
 			tPrintfDx PrintfDx = (tPrintfDx)0x4C94B0;
-			PrintfDx("%s\n", message);
+			PrintfDx("%s\n", message.c_str());
 		}
 	}
 	for (auto& it : toDelete) {
@@ -63,70 +62,84 @@ static void OnBeforeScreenFlip(SafetyHookContext& regs) {
 	UpdateNotifications();
 }
 
-static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp)
+void Logger(std::string message)
 {
-	((std::string*)userp)->append((char*)contents, size * nmemb);
-	return size * nmemb;
+	std::ofstream logFile;
+	logFile.open("Bokutachi.log", std::ios_base::app);
+	auto const time = std::chrono::current_zone()
+		->to_local(std::chrono::system_clock::now());
+	logFile << std::format("[{:%d-%m-%Y %X}] {}\n", time, message);
+	logFile.close();
 }
 
-void Logger(std::string buffer)
-{
+void CheckTachiApi() {
+	std::string baseUrl = url.substr(0, url.find_first_of("/", 8));
+	cpr::Response r = cpr::Get(cpr::Url{ baseUrl + "/api/v1/status" },
+							   cpr::Bearer{ apiKey });
+
+	if (r.error.code != cpr::ErrorCode::OK) {
+		std::println("[BokutachiHook] Coulnd't GET: {}", r.error.message);
+		AddNotification("Couldn't Connect to BokutachiIR!");
+		return;
+	}
 	try
 	{
-		json log = json::parse(buffer);
-		if (log["success"] == false)
-		{
-			std::ofstream logFile;
-			logFile.open("Bokutachi.log", std::ios_base::app);
-			auto time = std::chrono::system_clock::now();
-			std::time_t timeStamp = std::chrono::system_clock::to_time_t(time);
-			logFile << ctime(&timeStamp) << log["description"];
-			logFile << std::endl << std::endl;
-			logFile.close();
+		json json = json::parse(r.text);
+		userId = json["body"]["whoami"];
+		if (!userId) {
+			std::println("[BokutachiHook] Missing/Unknown API Key in 'BokutachiAuth.json'");
+			Logger("Missing/Unknown API Key in 'BokutachiAuth.json'.");
+			AddNotification("Bad API Key for BokutachiIR!");
+			return;
+		}
+
+		bool permissionsGood = false;
+		for (auto& permission : json["body"]["permissions"]) {
+			if (permission != "submit_score") continue;
+			permissionsGood = true;
+			break;
+		}
+		if (!permissionsGood) {
+			std::println("[BokutachiHook] API Key in BokutachiAuth.json is missing 'submit_score' permission");
+			Logger("API Key in BokutachiAuth.json is missing 'submit_score' permission.");
+			AddNotification("Bad API Key for BokutachiIR!");
+			return;
 		}
 	}
 	catch (json::exception& e)
 	{
 		// what now..?
 	}
+	AddNotification("BokutachiIR Connected!");
 }
 
-void SendPOST(const std::string reqBody, bool isDan)
+void SendScore(const std::string reqBody, bool isDan)
 {
-	CURL* request = curl_easy_init();
-	if (request == nullptr)
-	{
-		std::cout << "Couldn't initialize curl\n";
-		return;
+	cpr::Response r = cpr::Post(cpr::Url{ isDan? urlDan : url },
+								cpr::Header{ {"Content-Type", "application/json"} },
+								cpr::Bearer{ apiKey },
+								cpr::Body{ reqBody });
+	if (r.error.code != cpr::ErrorCode::OK) {
+		std::println("[BokutachiHook] Coulnd't POST: {}", r.error.message);
+		AddNotification(std::format("Failed to Send Score!\n{}", r.error.message));
 	}
-
-	struct curl_slist* headerPOST = nullptr;
-	std::string readBuffer;
-	headerPOST = curl_slist_append(headerPOST, "Content-Type: application/json");
-	headerPOST = curl_slist_append(headerPOST, apiKey.c_str());
-	if (!isDan)
-		curl_easy_setopt(request, CURLOPT_URL, url.c_str());
-	else
-		curl_easy_setopt(request, CURLOPT_URL, urlDan.c_str());
-	curl_easy_setopt(request, CURLOPT_HTTPHEADER, headerPOST);
-	curl_easy_setopt(request, CURLOPT_POSTFIELDS, reqBody.c_str());
-	curl_easy_setopt(request, CURLOPT_CUSTOMREQUEST, "POST");
-	curl_easy_setopt(request, CURLOPT_WRITEFUNCTION, WriteCallback);
-	curl_easy_setopt(request, CURLOPT_WRITEDATA, &readBuffer);
-	curl_easy_setopt(request, CURLOPT_SSL_VERIFYPEER, 0);
-	curl_easy_setopt(request, CURLOPT_SSL_VERIFYHOST, 0);
-
-#pragma warning(push)
-#pragma warning(disable : 26812)
-	CURLcode result = curl_easy_perform(request);
-#pragma warning(pop)
-	if (result != CURLE_OK)
-	{
-		std::cout << "Couldn't perform request: " << curl_easy_strerror(result) << std::endl;
+	else if (r.status_code != 200) {
+		std::println("[BokutachiHook] Score Rejected: {}", r.status_line);
+		AddNotification("Score Rejected! Check 'Bokutachi.log'...");
 	}
-	curl_easy_cleanup(request);
-	curl_slist_free_all(headerPOST);
-	Logger(std::move(readBuffer));
+	try
+	{
+		json log = json::parse(r.text);
+		if (log["success"] == false)
+		{
+			Logger(log["description"]);
+			std::println("[BokutachiHook] {}", std::string_view(log["description"]));
+		}
+	}
+	catch (json::exception& e)
+	{
+		// what now..?
+	}
 }
 
 std::string FormJSONString(std::string hash) {
@@ -179,34 +192,40 @@ safetyhook::InlineHook oUpdateScoreDB;
 static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql, LR2::CSTR* passMD5) {
 	std::string message = FormJSONString(hash.body);
 	LR2::game& game = *LR2::pGame;
-	std::cout << "[BokutachiHook] Trying to send " << hash.body << "\n";
-	std::thread(SendPOST, std::move(message), (game.gameplay.isCourse && game.gameplay.courseType == 2)).detach();
+	std::println("[BokutachiHook] Trying to send {}", hash.body);
+	std::thread(SendScore, std::move(message), (game.gameplay.isCourse && game.gameplay.courseType == 2)).detach();
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 }
 
 void BokutachiHook::Init() {
-	std::cout << "[BokutachiHook] Initializing.\n";
+	std::println("[BokutachiHook] Initializing.");
 	while (!LR2::isInit) Sleep(1);
 
 	moduleBase = (uintptr_t)GetModuleHandle(0);
 
-	json config;
-	{
-		std::ifstream conf("BokutachiAuth.json");
-		config = json::parse(conf);
+	try {
+		json config;
+		{
+			std::ifstream conf("BokutachiAuth.json");
+			config = json::parse(conf);
+		}
+		url = config.at("url");
+		urlDan = url + "/course";
+		apiKey = config.at("apiKey");
 	}
-	url = config.at("url");
-	urlDan = url + "/course";
-	apiKey = "Authorization: Bearer ";
-	apiKey += config.at("apiKey");
-
+	catch (...) {
+		std::println("[BokutachiHook] 'BokutachiAuth.json' missing or malformed");
+		Logger("'BokutachiAuth.json' is missing or malformed.");
+		AddNotification("Missing or malformed 'BokutachiAuth.json'!");
+	}
+	
 	UpdateScoreDB = (tUpdateScoreDB)(moduleBase + 0x45AF0);
 	oUpdateScoreDB = safetyhook::create_inline(UpdateScoreDB, OnUpdateScoreDB);
 
 	OnBeforeScreenFlipHk = safetyhook::create_mid(0x4367C6, OnBeforeScreenFlip);
 
-	std::cout << "[BokutachiHook] Init Done.\n";
-	AddNotification("BokutachiIR Connected!");
+	std::println("[BokutachiHook] Init Done.");
+	CheckTachiApi();
 }
 
 void BokutachiHook::Deinit() {

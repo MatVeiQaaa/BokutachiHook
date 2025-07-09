@@ -4,9 +4,3 @@
 [submodule "ext/json"]
 	path = ext/json
 	url = git@github.com:nlohmann/json.git
-[submodule "ext/curl"]
-	path = ext/curl
-	url = git@github.com:curl/curl.git
-[submodule "ext/libSafetyhook"]
-	path = ext/libSafetyhook
-	url = git@github.com:MatVeiQaaa/libSafetyhook.git

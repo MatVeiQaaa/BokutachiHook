@@ -1,7 +1,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
-#include <iostream>
 #include <thread>
+#include <print>
 
 #include "BokutachiHook.hpp"
 #include <LR2Mem/LR2Bindings.hpp>
@@ -19,7 +19,7 @@ BOOL APIENTRY DllMain(
         AllocConsole();
         freopen_s(&console_thread, "CONOUT$", "w", stdout);
 
-        std::cout << "Debug Console Attached" << std::endl;
+        std::println("Debug Console Attached");
 
         while (!IsDebuggerPresent())
             Sleep(100);
