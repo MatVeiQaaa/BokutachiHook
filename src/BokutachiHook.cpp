@@ -23,14 +23,12 @@ static std::string url;
 static std::string urlDan;
 static std::string apiKey;
 
-static int userId = -1;
-
 constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", "FULL COMBO" };
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
 constexpr const char* randomModes[6] = { "NORAN", "MIRROR", "RAN", "S-RAN", "H-RAN", "ALLSCR" };
 
-std::mutex notificationsMutex;
+static std::mutex notificationsMutex;
 static std::vector<std::pair<std::string, std::chrono::time_point<std::chrono::system_clock>>> notifications;
 
 static void AddNotification(std::string message) {
@@ -85,8 +83,7 @@ void CheckTachiApi() {
 	try
 	{
 		json json = json::parse(r.text);
-		userId = json["body"]["whoami"];
-		if (!userId) {
+		if (json["body"]["whoami"] == nullptr) {
 			std::println("[BokutachiHook] Missing/Unknown API Key in 'BokutachiAuth.json'");
 			Logger("Missing/Unknown API Key in 'BokutachiAuth.json'.");
 			AddNotification("Bad API Key for BokutachiIR!");
@@ -149,9 +146,7 @@ std::string FormJSONString(std::string hash) {
 	std::string md5;
 	
 	if (hashIsCourse) {
-		if (game.gameplay.isCourse && game.gameplay.courseType == 2) {
-			md5 = std::string(hash.begin() + 32, hash.end());
-		}
+		md5 = std::string(hash.begin() + 32, hash.end());
 	}
 	else md5 = hash;
 
@@ -169,7 +164,7 @@ std::string FormJSONString(std::string hash) {
 					{"good", game.gameplay.player[0].judgecount[3]},
 					{"bad", game.gameplay.player[0].judgecount[2]},
 					{"poor", game.gameplay.player[0].judgecount[1]},
-					{"maxCombo", game.gameplay.isCourse ? game.gameplay.player[0].max_combo_course : game.gameplay.player[0].max_combo},
+					{"maxCombo", hashIsCourse ? game.gameplay.player[0].max_combo_course : game.gameplay.player[0].max_combo},
 					{"exScore", game.gameplay.player[0].exscore},
 					{"moneyScore", game.gameplay.player[0].score_print},
 					{"notesTotal", game.gameplay.player[0].totalnotes},
@@ -179,7 +174,7 @@ std::string FormJSONString(std::string hash) {
 					}}
 	};
 
-	if (hashIsCourse && game.gameplay.player[0].clearType > 1)
+	if (!hashIsCourse && game.gameplay.isCourse && game.gameplay.player[0].clearType > 1)
 	{
 		scorePacket["scoreData"]["lamp"] = lamps[0];
 	}
@@ -193,7 +188,7 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 	std::string message = FormJSONString(hash.body);
 	LR2::game& game = *LR2::pGame;
 	std::println("[BokutachiHook] Trying to send {}", hash.body);
-	std::thread(SendScore, std::move(message), (game.gameplay.isCourse && game.gameplay.courseType == 2)).detach();
+	std::thread(SendScore, std::move(message), std::string_view(hash.body).length() > 32).detach();
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 }
 
