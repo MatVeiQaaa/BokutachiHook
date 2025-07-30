@@ -64,9 +64,15 @@ void Logger(std::string message)
 {
 	std::ofstream logFile;
 	logFile.open("Bokutachi.log", std::ios_base::app);
-	auto const time = std::chrono::current_zone()
-		->to_local(std::chrono::system_clock::now());
-	logFile << std::format("[{:%d-%m-%Y %X}] {}\n", time, message);
+
+	if (static_cast<void*>(GetProcAddress(GetModuleHandle("ntdll"), "wine_get_version")) != nullptr) {
+		logFile << std::format("[{:%d-%m-%Y %X}] {}\n", std::chrono::system_clock::now(), message);
+	}
+	else {
+		auto const time = std::chrono::current_zone()
+			->to_local(std::chrono::system_clock::now());
+			logFile << std::format("[{:%d-%m-%Y %X}] {}\n", time, message);
+	}
 	logFile.close();
 }
 
@@ -185,10 +191,17 @@ typedef int(__cdecl* tUpdateScoreDB)(LR2::CSTR hash, LR2::STATUS* stat, void* sq
 tUpdateScoreDB UpdateScoreDB = nullptr;
 safetyhook::InlineHook oUpdateScoreDB;
 static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql, LR2::CSTR* passMD5) {
-	std::string message = FormJSONString(hash.body);
 	LR2::game& game = *LR2::pGame;
-	std::println("[BokutachiHook] Trying to send {}", hash.body);
-	std::thread(SendScore, std::move(message), std::string_view(hash.body).length() > 32).detach();
+	std::string message = FormJSONString(hash.body);
+	if (game.config.play.is_extra) {
+		std::println("[BokutachiHook] Ignoring score to extra mode");
+		Logger("Shit!");
+		AddNotification("Score not sent - Extra mode enabled");
+	}
+	else {
+		std::println("[BokutachiHook] Trying to send {}", hash.body);
+		std::thread(SendScore, std::move(message), std::string_view(hash.body).length() > 32).detach();
+	}
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 }
 
