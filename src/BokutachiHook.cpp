@@ -83,6 +83,7 @@ void CheckTachiApi() {
 
 	if (r.error.code != cpr::ErrorCode::OK) {
 		std::println("[BokutachiHook] Coulnd't GET: {}", r.error.message);
+		std::fflush(stdout);
 		AddNotification("Couldn't Connect to BokutachiIR!");
 		return;
 	}
@@ -91,6 +92,7 @@ void CheckTachiApi() {
 		json json = json::parse(r.text);
 		if (json["body"]["whoami"] == nullptr) {
 			std::println("[BokutachiHook] Missing/Unknown API Key in 'BokutachiAuth.json'");
+			std::fflush(stdout);
 			Logger("Missing/Unknown API Key in 'BokutachiAuth.json'.");
 			AddNotification("Bad API Key for BokutachiIR!");
 			return;
@@ -104,6 +106,7 @@ void CheckTachiApi() {
 		}
 		if (!permissionsGood) {
 			std::println("[BokutachiHook] API Key in BokutachiAuth.json is missing 'submit_score' permission");
+			std::fflush(stdout);
 			Logger("API Key in BokutachiAuth.json is missing 'submit_score' permission.");
 			AddNotification("Bad API Key for BokutachiIR!");
 			return;
@@ -143,6 +146,7 @@ void SendScore(const std::string reqBody, bool isDan)
 	{
 		// what now..?
 	}
+	std::fflush(stdout);
 }
 
 std::string FormJSONString(std::string hash) {
@@ -195,13 +199,14 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 	std::string message = FormJSONString(hash.body);
 	if (game.config.play.is_extra) {
 		std::println("[BokutachiHook] Ignoring score to extra mode");
-		Logger("Shit!");
+		Logger("Score not sent - Extra mode enabled");
 		AddNotification("Score not sent - Extra mode enabled");
 	}
 	else {
 		std::println("[BokutachiHook] Trying to send {}", hash.body);
 		std::thread(SendScore, std::move(message), std::string_view(hash.body).length() > 32).detach();
 	}
+	std::fflush(stdout);
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 }
 
@@ -233,6 +238,7 @@ void BokutachiHook::Init() {
 	OnBeforeScreenFlipHk = safetyhook::create_mid(0x4367C6, OnBeforeScreenFlip);
 
 	std::println("[BokutachiHook] Init Done.");
+	std::fflush(stdout);
 	CheckTachiApi();
 }
 
