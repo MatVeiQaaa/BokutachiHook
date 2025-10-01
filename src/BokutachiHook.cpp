@@ -23,6 +23,37 @@ static std::string url;
 static std::string urlDan;
 static std::string apiKey;
 
+struct ExtendedCaps {
+	struct Judgements {
+		unsigned int epg;
+		unsigned int lpg;
+		unsigned int egr;
+		unsigned int lgr;
+		unsigned int egd;
+		unsigned int lgd;
+		unsigned int ebd;
+		unsigned int lbd;
+		unsigned int epr;
+		unsigned int lpr;
+		unsigned int cb;
+		unsigned int fast;
+		unsigned int slow;
+		unsigned int noteCount;
+	};
+	struct GaugeGraphs {
+		int groove[1000];
+		int hard[1000];
+		int hazard[1000];
+		int easy[1000];
+		int pattack[1000];
+		int gattack[1000];
+	};
+	bool canJudgements = false;
+	bool canGas = false;
+	Judgements (__cdecl* GetJudgements)() = nullptr;
+	GaugeGraphs (__cdecl* GetGaugeGraphs)() = nullptr;
+};
+
 constexpr const char* lamps[6] = { "NO PLAY", "FAIL", "EASY", "NORMAL", "HARD", "FULL COMBO" };
 constexpr const char* gauges[6] = { "GROOVE", "HARD", "HAZARD", "EASY", "P-ATTACK", "G-ATTACK" };
 constexpr const char* gameModes[8] = { "ALL", "SINGLE", "7K", "5K", "DOUBLE", "14K", "10K", "9K" };
@@ -60,7 +91,7 @@ static void OnBeforeScreenFlip(SafetyHookContext& regs) {
 	UpdateNotifications();
 }
 
-void Logger(std::string message)
+static void Logger(std::string message)
 {
 	std::ofstream logFile;
 	logFile.open("Bokutachi.log", std::ios_base::app);
@@ -76,7 +107,7 @@ void Logger(std::string message)
 	logFile.close();
 }
 
-void CheckTachiApi() {
+static void CheckTachiApi() {
 	std::string baseUrl = url.substr(0, url.find_first_of("/", 8));
 	cpr::Response r = cpr::Get(cpr::Url{ baseUrl + "/api/v1/status" },
 							   cpr::Bearer{ apiKey });
@@ -119,7 +150,22 @@ void CheckTachiApi() {
 	AddNotification("BokutachiIR Connected!");
 }
 
-void SendScore(const std::string reqBody, bool isDan)
+static ExtendedCaps GetCaps() {
+	ExtendedCaps caps;
+	HMODULE hackbox = GetModuleHandle("azop.dll");
+	if (hackbox) {
+		caps.GetJudgements = (decltype(caps.GetJudgements))GetProcAddress(hackbox, "GetJudgements");
+		if (caps.GetJudgements) caps.canJudgements = true;
+	}
+	HMODULE gas = GetModuleHandle("LR2GAS.dll");
+	if (gas) {
+		caps.GetGaugeGraphs = (decltype(caps.GetGaugeGraphs))GetProcAddress(gas, "GetGaugeGraphs");
+		if (caps.GetGaugeGraphs) caps.canGas = true;
+	}
+	return caps;
+}
+
+static void SendScore(const std::string reqBody, bool isDan)
 {
 	cpr::Response r = cpr::Post(cpr::Url{ isDan? urlDan : url },
 								cpr::Header{ {"Content-Type", "application/json"} },
@@ -149,7 +195,7 @@ void SendScore(const std::string reqBody, bool isDan)
 	std::fflush(stdout);
 }
 
-std::string FormJSONString(std::string hash) {
+static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
 	bool hashIsCourse = hash.length() > 32;
 	json scorePacket;
 	LR2::game& game = *LR2::pGame;
@@ -166,8 +212,9 @@ std::string FormJSONString(std::string hash) {
 					{"autoScr", game.config.play.p1_assist | game.config.play.p2_assist},
 					{"gameMode", gameModes[game.config.select.key]},
 					{"random", randomModes[game.config.play.random[0]]},
-					{"gauge", gauges[game.config.play.gaugeOption[0]]}
-					}},
+					{"gauge", gauges[game.config.play.gaugeOption[0]]},
+					{"rseed", game.gameplay.randomseed},
+		}},
 		{"scoreData", {
 					{"pgreat", game.gameplay.player[0].judgecount[5]},
 					{"great", game.gameplay.player[0].judgecount[4]},
@@ -180,15 +227,49 @@ std::string FormJSONString(std::string hash) {
 					{"notesTotal", game.gameplay.player[0].totalnotes},
 					{"notesPlayed", game.gameplay.player[0].note_current},
 					{"lamp", lamps[game.gameplay.player[0].clearType]},
-					{"hpGraph", game.gameplay.statgraph[0].hp}
-					}}
+					{"hpGraph", game.gameplay.statgraph[0].hp},
+					{"extendedJudgements", nullptr},
+					{"extendedHpGraphs", nullptr}
+		}}
 	};
 
 	if (!hashIsCourse && game.gameplay.isCourse && game.gameplay.player[0].clearType > 1)
 	{
 		scorePacket["scoreData"]["lamp"] = lamps[0];
 	}
-	return scorePacket.dump();
+
+	if (caps.canJudgements) {
+		ExtendedCaps::Judgements judgements = caps.GetJudgements();
+		scorePacket["scoreData"]["extendedJudgements"] = {
+			{"epg", judgements.epg},
+			{"lpg", judgements.lpg},
+			{"egr", judgements.egr},
+			{"lgr", judgements.lgr},
+			{"egd", judgements.egd},
+			{"lgd", judgements.lgd},
+			{"ebd", judgements.ebd},
+			{"lbd", judgements.lbd},
+			{"epr", judgements.epr},
+			{"lpr", judgements.lpr},
+			{"cb", judgements.cb},
+			{"fast", judgements.fast},
+			{"slow", judgements.slow},
+			{"noteCount", judgements.noteCount}
+		};
+	}
+
+	if (!game.gameplay.isCourse && caps.canGas) {
+		ExtendedCaps::GaugeGraphs gauges = caps.GetGaugeGraphs();
+		scorePacket["scoreData"]["extendedHpGraphs"] = {
+			{"groove", gauges.groove},
+			{"hard", gauges.hard},
+			{"hazard", gauges.hazard},
+			{"easy", gauges.easy},
+			{"pattack", gauges.pattack},
+			{"gattack", gauges.gattack}
+		};
+	}
+	return scorePacket.dump(4);
 }
 
 typedef int(__cdecl* tUpdateScoreDB)(LR2::CSTR hash, LR2::STATUS* stat, void* sql, LR2::CSTR* passMD5);
@@ -196,7 +277,8 @@ tUpdateScoreDB UpdateScoreDB = nullptr;
 safetyhook::InlineHook oUpdateScoreDB;
 static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql, LR2::CSTR* passMD5) {
 	LR2::game& game = *LR2::pGame;
-	std::string message = FormJSONString(hash.body);
+	ExtendedCaps caps = GetCaps();
+	std::string message = FormJSONString(hash.body, caps);
 	if (game.config.play.is_extra) {
 		std::println("[BokutachiHook] Ignoring score to extra mode");
 		Logger("Score not sent - Extra mode enabled");
