@@ -38,7 +38,7 @@ struct ExtendedCaps {
 		unsigned int cb;
 		unsigned int fast;
 		unsigned int slow;
-		unsigned int noteCount;
+		unsigned int notesPlayed;
 	};
 	struct GaugeGraphs {
 		int groove[1000];
@@ -254,7 +254,7 @@ static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
 			{"cb", judgements.cb},
 			{"fast", judgements.fast},
 			{"slow", judgements.slow},
-			{"noteCount", judgements.noteCount}
+			{"notesPlayed", judgements.notesPlayed}
 		};
 	}
 
