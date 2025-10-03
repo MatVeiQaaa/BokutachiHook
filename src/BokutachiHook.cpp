@@ -225,6 +225,7 @@ static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
 	json scorePacket;
 	LR2::game& game = *LR2::pGame;
 	std::string md5;
+	std::chrono::seconds unixTimestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch());
 	
 	if (hashIsCourse) {
 		md5 = std::string(hash.begin() + 32, hash.end());
@@ -232,6 +233,7 @@ static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
 	else md5 = hash;
 
 	scorePacket = {
+		{"unixTimestamp", unixTimestamp.count()},
 		{"md5", md5},
 		{"playerData", {
 					{"autoScr", game.config.play.p1_assist | game.config.play.p2_assist},
