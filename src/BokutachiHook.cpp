@@ -339,6 +339,8 @@ void BokutachiHook::Init() {
 
 	moduleBase = (uintptr_t)GetModuleHandle(0);
 
+	bool checkUpdates = true;
+
 	try {
 		json config;
 		{
@@ -348,6 +350,8 @@ void BokutachiHook::Init() {
 		url = config.at("url");
 		urlDan = url + "/course";
 		apiKey = config.at("apiKey");
+		if (auto it = config.find("checkUpdates"); it != config.end())
+			checkUpdates = *it;
 	}
 	catch (...) {
 		Logger("'BokutachiAuth.json' is missing or malformed.");
@@ -362,7 +366,8 @@ void BokutachiHook::Init() {
 	std::println("[BokutachiHook] Init Done.");
 	std::fflush(stdout);
 	CheckTachiApi();
-	CheckVersion();
+	if (checkUpdates)
+		CheckVersion();
 }
 
 void BokutachiHook::Deinit() {
