@@ -366,8 +366,7 @@ void BokutachiHook::Init() {
 	std::println("[BokutachiHook] Init Done.");
 	std::fflush(stdout);
 	CheckTachiApi();
-	if (checkUpdates)
-		CheckVersion();
+	if (checkUpdates) CheckVersion();
 }
 
 void BokutachiHook::Deinit() {
