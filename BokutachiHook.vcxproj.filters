@@ -21,9 +21,15 @@
     <ClCompile Include="src\BokutachiHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Version.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\BokutachiHook.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Version.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

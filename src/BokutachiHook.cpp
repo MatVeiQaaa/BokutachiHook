@@ -1,4 +1,5 @@
 #include "BokutachiHook.hpp"
+#include "Version.hpp"
 
 #include <print>
 #include <format>
@@ -148,6 +149,19 @@ static void CheckTachiApi() {
 		// what now..?
 	}
 	AddNotification("BokutachiIR Connected!");
+}
+
+static void CheckVersion() {
+	std::thread([] {
+		if (auto result = Version::Check()) {
+			if (!*result) {
+				AddNotification("BokutachiHook Update Available!");
+			}
+		}
+		else {
+			AddNotification("Couldn't check for BokutachiHook update...");
+		}
+	}).detach();
 }
 
 static ExtendedCaps GetCaps() {
@@ -322,6 +336,7 @@ void BokutachiHook::Init() {
 	std::println("[BokutachiHook] Init Done.");
 	std::fflush(stdout);
 	CheckTachiApi();
+	CheckVersion();
 }
 
 void BokutachiHook::Deinit() {
