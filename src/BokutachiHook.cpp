@@ -6,6 +6,7 @@
 #include <fstream>
 #include <thread>
 #include <vector>
+#include <cmath>
 
 #include <LR2Mem/LR2Bindings.hpp>
 #include <safetyhook.hpp>
@@ -94,6 +95,8 @@ static void OnBeforeScreenFlip(SafetyHookContext& regs) {
 
 static void Logger(std::string message)
 {
+	std::println("[BokutachiHook] {}", message);
+	fflush(stdout);
 	std::ofstream logFile;
 	logFile.open("Bokutachi.log", std::ios_base::app);
 
@@ -114,8 +117,7 @@ static void CheckTachiApi() {
 							   cpr::Bearer{ apiKey });
 
 	if (r.error.code != cpr::ErrorCode::OK) {
-		std::println("[BokutachiHook] Coulnd't GET: {}", r.error.message);
-		std::fflush(stdout);
+		Logger(std::format("Couldn't GET: {}", r.error.message));
 		AddNotification("Couldn't Connect to BokutachiIR!");
 		return;
 	}
@@ -123,8 +125,6 @@ static void CheckTachiApi() {
 	{
 		json json = json::parse(r.text);
 		if (json["body"]["whoami"] == nullptr) {
-			std::println("[BokutachiHook] Missing/Unknown API Key in 'BokutachiAuth.json'");
-			std::fflush(stdout);
 			Logger("Missing/Unknown API Key in 'BokutachiAuth.json'.");
 			AddNotification("Bad API Key for BokutachiIR!");
 			return;
@@ -137,8 +137,6 @@ static void CheckTachiApi() {
 			break;
 		}
 		if (!permissionsGood) {
-			std::println("[BokutachiHook] API Key in BokutachiAuth.json is missing 'submit_score' permission");
-			std::fflush(stdout);
 			Logger("API Key in BokutachiAuth.json is missing 'submit_score' permission.");
 			AddNotification("Bad API Key for BokutachiIR!");
 			return;
@@ -179,34 +177,47 @@ static ExtendedCaps GetCaps() {
 	return caps;
 }
 
-static void SendScore(const std::string reqBody, bool isDan)
+static void SendScore(const std::string reqBody, const std::string songName, bool isDan)
 {
-	cpr::Response r = cpr::Post(cpr::Url{ isDan? urlDan : url },
-								cpr::Header{ {"Content-Type", "application/json"} },
-								cpr::Bearer{ apiKey },
-								cpr::Body{ reqBody });
-	if (r.error.code != cpr::ErrorCode::OK) {
-		std::println("[BokutachiHook] Coulnd't POST: {}", r.error.message);
-		AddNotification(std::format("Failed to Send Score!\n{}", r.error.message));
-	}
-	else if (r.status_code != 200) {
-		std::println("[BokutachiHook] Score Rejected: {}", r.status_line);
-		AddNotification("Score Rejected! Check 'Bokutachi.log'...");
-	}
-	try
-	{
-		json log = json::parse(r.text);
-		if (log["success"] == false)
-		{
-			Logger(log["description"]);
-			std::println("[BokutachiHook] {}", std::string_view(log["description"]));
+	constexpr const int tryMax = 5;
+	int tryCount = 1;
+	while (tryCount <= tryMax) {
+		cpr::Response r = cpr::Post(cpr::Url{ isDan ? urlDan : url },
+			cpr::Header{ {"Content-Type", "application/json"} },
+			cpr::Bearer{ apiKey },
+			cpr::Body{ reqBody });
+		if (r.error.code != cpr::ErrorCode::OK) {
+			Logger(std::format("Coulnd't POST: {}", r.error.message));
+			if (tryCount == tryMax) {
+				AddNotification(std::format("Failed to Send Score for {} after {} attempts!\n{}", songName, tryCount, r.error.message));
+			}
+			else {
+				int sleepFor = static_cast<int>(std::pow(4, tryCount));
+				AddNotification(std::format("Failed to Send Score for {}!\nRetrying in {}s...", songName, sleepFor));
+				std::this_thread::sleep_for(std::chrono::seconds(sleepFor));
+			}
+			tryCount++;
+			continue;
 		}
+		else if (r.status_code != 200) {
+			std::println("[BokutachiHook] Score Rejected: {}", r.status_line);
+			AddNotification("Score Rejected! Check 'Bokutachi.log'...");
+		}
+		try
+		{
+			json log = json::parse(r.text);
+			if (log["success"] == false)
+			{
+				Logger(log["description"]);
+			}
+		}
+		catch (json::exception& e)
+		{
+			// what now..?
+		}
+		std::fflush(stdout);
+		break;
 	}
-	catch (json::exception& e)
-	{
-		// what now..?
-	}
-	std::fflush(stdout);
 }
 
 static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
@@ -293,14 +304,28 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 	LR2::game& game = *LR2::pGame;
 	ExtendedCaps caps = GetCaps();
 	std::string message = FormJSONString(hash.body, caps);
+	std::string songName;
+	bool courseHash = std::string_view(hash.body).length() > 32;
+	if (game.gameplay.courseType == 0 || game.gameplay.courseType == 2) {
+		LR2::SONGDATA& course = game.sSelect.bmsList[game.sSelect.cur_song];
+		int stage = game.gameplay.courseStageNow;
+		if (courseHash) {
+			songName = course.title.body;
+		}
+		else {
+			songName = std::format("{} {}", course.courseTitle[stage].body, course.courseSubtitle[stage].body);
+		}
+	}
+	else {
+		songName = std::format("{} {}", game.sSelect.metaSelected.title.body, game.sSelect.metaSelected.subtitle.body);
+	}
 	if (game.config.play.is_extra) {
-		std::println("[BokutachiHook] Ignoring score to extra mode");
 		Logger("Score not sent - Extra mode enabled");
 		AddNotification("Score not sent - Extra mode enabled");
 	}
 	else {
 		std::println("[BokutachiHook] Trying to send {}", hash.body);
-		std::thread(SendScore, std::move(message), std::string_view(hash.body).length() > 32).detach();
+		std::thread(SendScore, std::move(message), std::move(songName), courseHash).detach();
 	}
 	std::fflush(stdout);
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
@@ -323,7 +348,6 @@ void BokutachiHook::Init() {
 		apiKey = config.at("apiKey");
 	}
 	catch (...) {
-		std::println("[BokutachiHook] 'BokutachiAuth.json' missing or malformed");
 		Logger("'BokutachiAuth.json' is missing or malformed.");
 		AddNotification("Missing or malformed 'BokutachiAuth.json'!");
 	}
