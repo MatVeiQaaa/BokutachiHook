@@ -19,8 +19,8 @@
 
 #define VERSION 2, 1, 0
 static constexpr const auto version = [] {
-return class { public: unsigned int major; unsigned int minor; unsigned int patch; }
-								{ VERSION };
+class Version { public: unsigned int major; unsigned int minor; unsigned int patch; };
+								return Version{ VERSION };
 }();
 
 using json = nlohmann::ordered_json;
