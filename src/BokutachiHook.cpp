@@ -17,6 +17,12 @@
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Crypt32.lib")
 
+#define VERSION 2, 1, 0
+static constexpr const auto version = [] {
+class Version { public: unsigned int major; unsigned int minor; unsigned int patch; };
+								return Version{ VERSION };
+}();
+
 using json = nlohmann::ordered_json;
 
 static uintptr_t moduleBase = 0;
@@ -233,6 +239,11 @@ static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
 	else md5 = hash;
 
 	scorePacket = {
+		{"version", {
+			{"major", version.major},
+			{"minor", version.minor},
+			{"patch", version.patch}
+		}},
 		{"unixTimestamp", unixTimestamp.count()},
 		{"md5", md5},
 		{"playerData", {
@@ -240,7 +251,7 @@ static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
 					{"gameMode", gameModes[game.config.select.key]},
 					{"random", randomModes[game.config.play.random[0]]},
 					{"gauge", gauges[game.config.play.gaugeOption[0]]},
-					{"rseed", game.gameplay.randomseed},
+					{"rseed", game.gameplay.randomseed}
 		}},
 		{"scoreData", {
 					{"pgreat", game.gameplay.player[0].judgecount[5]},
