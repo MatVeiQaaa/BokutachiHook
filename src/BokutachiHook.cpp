@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 #include <cmath>
+#include <ranges>
 
 #include <LR2Mem/LR2Bindings.hpp>
 #include <safetyhook.hpp>
@@ -72,14 +73,21 @@ static std::vector<std::pair<std::string, std::chrono::time_point<std::chrono::s
 
 static void AddNotification(std::string message) {
 	const std::lock_guard lock(notificationsMutex);
-	notifications.push_back({ message, std::chrono::system_clock::now() });
+	notifications.emplace_back(std::move(message), std::chrono::system_clock::now());
 }
 
 static void UpdateNotifications() {
+	static std::chrono::milliseconds extraWait;
 	std::vector<decltype(notifications.begin())> toDelete;
 	const std::lock_guard lock(notificationsMutex);
+	LR2::game& game = *LR2::pGame;
+	if (game.procSelecter == 4 && !notifications.empty()) {
+		extraWait = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - (*notifications.begin()).second);
+		return;
+	}
 	for (auto it = notifications.begin(); it != notifications.end(); it++) {
 		auto& [message, time] = *it;
+		time += extraWait;
 		if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - time).count() > 3000) {
 			toDelete.push_back(it);
 		}
@@ -89,6 +97,8 @@ static void UpdateNotifications() {
 			PrintfDx("%s\n", message.c_str());
 		}
 	}
+	extraWait = std::chrono::milliseconds(0);
+	std::ranges::reverse(toDelete);
 	for (auto& it : toDelete) {
 		notifications.erase(it);
 	}
