@@ -215,10 +215,16 @@ static void SendScore(const std::string reqBody, const std::string songName, boo
 			tryCount++;
 			continue;
 		}
-		else if (r.status_code != 200) {
+
+		if (r.status_code != 200) {
 			std::println("[BokutachiHook] Score Rejected: {}", r.status_line);
-			AddNotification("Score Rejected! Check 'Bokutachi.log'...");
+			std::fflush(stdout);
+			AddNotification(std::format("Score for {} Rejected! Check 'Bokutachi.log'...", songName));
 		}
+		else if (tryCount > 1) {
+			AddNotification(std::format("Score for {} sent after {} attempts", songName, tryCount));
+		}
+
 		try
 		{
 			json log = json::parse(r.text);
@@ -231,7 +237,6 @@ static void SendScore(const std::string reqBody, const std::string songName, boo
 		{
 			// what now..?
 		}
-		std::fflush(stdout);
 		break;
 	}
 }
@@ -348,9 +353,9 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 	}
 	else {
 		std::println("[BokutachiHook] Trying to send {}", hash.body);
+		std::fflush(stdout);
 		std::thread(SendScore, std::move(message), std::move(songName), courseHash).detach();
 	}
-	std::fflush(stdout);
 	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 }
 
