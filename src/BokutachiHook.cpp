@@ -195,7 +195,7 @@ static ExtendedCaps GetCaps() {
 
 static void SendScore(const std::string reqBody, const std::string songName, bool isDan)
 {
-	constexpr const int tryMax = 5;
+	constexpr const int tryMax = 6;
 	int tryCount = 1;
 	while (tryCount <= tryMax) {
 		cpr::Response r = cpr::Post(cpr::Url{ isDan ? urlDan : url },
