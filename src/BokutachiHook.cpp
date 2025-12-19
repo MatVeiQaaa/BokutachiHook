@@ -71,9 +71,15 @@ constexpr const char* randomModes[6] = { "NORAN", "MIRROR", "RAN", "S-RAN", "H-R
 static std::mutex notificationsMutex;
 static std::vector<std::pair<std::string, std::chrono::time_point<std::chrono::system_clock>>> notifications;
 
+constexpr std::chrono::milliseconds notificationDuration(3000);
 static void AddNotification(std::string message) {
 	const std::lock_guard lock(notificationsMutex);
+	if (notifications.empty())
 	notifications.emplace_back(std::move(message), std::chrono::system_clock::now());
+	else {
+		auto& [messageLast, timeLast] = *(notifications.end() - 1);
+		notifications.emplace_back(std::move(message), timeLast + notificationDuration * 2);
+	}
 }
 
 static void UpdateNotifications() {
@@ -88,7 +94,7 @@ static void UpdateNotifications() {
 	for (auto it = notifications.begin(); it != notifications.end(); it++) {
 		auto& [message, time] = *it;
 		time += extraWait;
-		if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - time).count() > 3000) {
+		if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - time) > notificationDuration) {
 			toDelete.push_back(it);
 		}
 		else {
