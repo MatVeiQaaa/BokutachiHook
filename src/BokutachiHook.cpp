@@ -18,7 +18,7 @@
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Crypt32.lib")
 
-#define VERSION 2, 1, 0
+#define VERSION 2, 1, 2
 static constexpr const auto version = [] {
 class Version { public: unsigned int major; unsigned int minor; unsigned int patch; };
 								return Version{ VERSION };
