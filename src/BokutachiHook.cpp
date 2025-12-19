@@ -329,6 +329,7 @@ typedef int(__cdecl* tUpdateScoreDB)(LR2::CSTR hash, LR2::STATUS* stat, void* sq
 tUpdateScoreDB UpdateScoreDB = nullptr;
 safetyhook::InlineHook oUpdateScoreDB;
 static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql, LR2::CSTR* passMD5) {
+	int retVal = oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
 	LR2::game& game = *LR2::pGame;
 	ExtendedCaps caps = GetCaps();
 	std::string message = FormJSONString(hash.body, caps);
@@ -356,7 +357,7 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 		std::fflush(stdout);
 		std::thread(SendScore, std::move(message), std::move(songName), courseHash).detach();
 	}
-	return oUpdateScoreDB.ccall<int>(hash, stat, sql, passMD5);
+	return retVal;
 }
 
 void BokutachiHook::Init() {
