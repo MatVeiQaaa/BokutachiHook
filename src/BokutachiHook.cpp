@@ -139,7 +139,7 @@ static void Logger(std::string message)
 	logFile.close();
 }
 
-static void CheckTachiApi() {
+static bool CheckTachiApi() {
 	std::string baseUrl = url.substr(0, url.find_first_of("/", 8));
 	cpr::Response r = cpr::Get(cpr::Url{ baseUrl + "/api/v1/status" },
 							   cpr::Timeout{ std::chrono::seconds(5) },
@@ -148,15 +148,16 @@ static void CheckTachiApi() {
 	if (r.error.code != cpr::ErrorCode::OK) {
 		Logger(std::format("Couldn't GET: {}", r.error.message));
 		AddNotification("Couldn't Connect to BokutachiIR!");
-		return;
+		return false;
 	}
+
 	try
 	{
 		json json = json::parse(r.text);
 		if (json["body"]["whoami"] == nullptr) {
 			Logger("Missing/Unknown API Key in 'BokutachiAuth.json'.");
 			AddNotification("Bad API Key for BokutachiIR!");
-			return;
+			return false;
 		}
 
 		bool permissionsGood = false;
@@ -168,7 +169,7 @@ static void CheckTachiApi() {
 		if (!permissionsGood) {
 			Logger("API Key in BokutachiAuth.json is missing 'submit_score' permission.");
 			AddNotification("Bad API Key for BokutachiIR!");
-			return;
+			return false;
 		}
 	}
 	catch (json::exception& e)
@@ -176,6 +177,7 @@ static void CheckTachiApi() {
 		Logger(std::format("JSON exception: {}", e.what()));
 	}
 	AddNotification("BokutachiIR Connected!");
+	return true;
 }
 
 static void CheckVersion() {
@@ -206,68 +208,87 @@ static ExtendedCaps GetCaps() {
 	return caps;
 }
 
+enum class SendScoreStatus : int {
+	Ok = 0,
+	Retry,
+	Fail,
+};
+
+static SendScoreStatus SendScoreTryOnce(const std::string& reqBody, const std::string& songName, bool isDan)
+{
+	cpr::Response r = cpr::Post(cpr::Url{ isDan ? urlDan : url },
+		cpr::Timeout{ std::chrono::seconds(10) },
+		cpr::Header{ {"Content-Type", "application/json"} },
+		cpr::Bearer{ apiKey },
+		cpr::Body{ reqBody });
+
+	if (r.error.code != cpr::ErrorCode::OK || r.status_code / 100 == 5) {
+		Logger(std::format("Couldn't POST: {}", r.error.message));
+		return SendScoreStatus::Retry;
+	}
+
+	try
+	{
+		json log = json::parse(r.text);
+		if (!log["success"]) {
+			Logger(std::format("Score for {} !success: {}", songName, std::string_view(log["description"])));
+			return SendScoreStatus::Fail;
+		}
+	}
+	catch (json::exception& e)
+	{
+		Logger(std::format("JSON exception: {}", e.what()));
+	}
+
+	if (r.status_code != 200) {
+		Logger(std::format("Score for {} !=200: {}", songName, r.status_line));
+		return SendScoreStatus::Fail;
+	}
+
+	return SendScoreStatus::Ok;
+}
+
 static void SendScore(const std::string reqBody, const std::string songName, bool isDan)
 {
 	constexpr const int tryMax = 6;
 	int tryCount = 1;
 	while (tryCount <= tryMax) {
-		cpr::Response r = cpr::Post(cpr::Url{ isDan ? urlDan : url },
-			cpr::Timeout{ std::chrono::seconds(10) },
-			cpr::Header{ {"Content-Type", "application/json"} },
-			cpr::Bearer{ apiKey },
-			cpr::Body{ reqBody });
-		if (r.error.code != cpr::ErrorCode::OK || r.status_code / 100 == 5) {
-			Logger(std::format("Couldn't POST: {}", r.error.message));
+		switch(SendScoreTryOnce(reqBody, songName, isDan))
+		{
+		case SendScoreStatus::Ok:
+			if (tryCount > 1) {
+				AddNotification(std::format("Score for {} sent after {} attempts", songName, tryCount));
+			}
+			return;
+		case SendScoreStatus::Fail:
+			AddNotification(std::format("Score for {} rejected, check Bokutachi.log", songName));
+			Logger(reqBody);
+			return;
+		case SendScoreStatus::Retry:
 			if (tryCount == tryMax) {
-				AddNotification(std::format("Failed to Send Score for {} after {} attempts!\n{}", songName, tryCount, r.error.message));
+				AddNotification(std::format("Failed to Send Score for {} after {} attempts!", songName, tryCount));
+				Logger(reqBody);
+				return;
 			}
-			else {
-				int sleepFor = static_cast<int>(std::pow(4, tryCount));
-				AddNotification(std::format("Failed to Send Score for {}!\nRetrying in {}s...", songName, sleepFor));
-				std::this_thread::sleep_for(std::chrono::seconds(sleepFor));
-			}
-			tryCount++;
-			continue;
+			const auto sleepFor = static_cast<int>(std::pow(4, tryCount));
+			AddNotification(std::format("Failed to Send Score for {}!\nRetrying in {}s...", songName, sleepFor));
+			std::this_thread::sleep_for(std::chrono::seconds(sleepFor));
+			break;
 		}
-
-		if (r.status_code != 200) {
-			std::println("[BokutachiHook] Score Rejected: {}", r.status_line);
-			std::fflush(stdout);
-			AddNotification(std::format("Score for {} Rejected! Check 'Bokutachi.log'...", songName));
-		}
-		else if (tryCount > 1) {
-			AddNotification(std::format("Score for {} sent after {} attempts", songName, tryCount));
-		}
-
-		try
-		{
-			json log = json::parse(r.text);
-			if (log["success"] == false)
-			{
-				Logger(log["description"]);
-			}
-		}
-		catch (json::exception& e)
-		{
-			Logger(std::format("JSON exception: {}", e.what()));
-		}
-		break;
+		tryCount++;
 	}
 }
 
 static std::string FormJSONString(std::string hash, ExtendedCaps& caps) {
-	bool hashIsCourse = hash.length() > 32;
-	json scorePacket;
-	LR2::game& game = *LR2::pGame;
-	std::string md5;
-	std::chrono::seconds unixTimestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch());
-	
-	if (hashIsCourse) {
-		md5 = std::string(hash.begin() + 32, hash.end());
-	}
-	else md5 = hash;
+	const bool hashIsCourse = hash.length() > 32;
 
-	scorePacket = {
+	LR2::game& game = *LR2::pGame;
+	const std::chrono::seconds unixTimestamp = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch());
+	const std::string md5 = hashIsCourse
+		? std::string(hash.begin() + 32, hash.end())
+		: hash;
+
+	json scorePacket = {
 		{"version", {
 			{"major", version.major},
 			{"minor", version.minor},
