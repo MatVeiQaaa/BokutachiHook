@@ -115,6 +115,12 @@ static void OnBeforeScreenFlip(SafetyHookContext& regs) {
 	UpdateNotifications();
 }
 
+static bool is_wine()
+{
+	auto* ntdll = GetModuleHandle("ntdll");
+	return ntdll != nullptr && static_cast<void*>(GetProcAddress(ntdll, "wine_get_version")) != nullptr;
+}
+
 static void Logger(std::string message)
 {
 	std::println("[BokutachiHook] {}", message);
@@ -122,7 +128,7 @@ static void Logger(std::string message)
 	std::ofstream logFile;
 	logFile.open("Bokutachi.log", std::ios_base::app);
 
-	if (static_cast<void*>(GetProcAddress(GetModuleHandle("ntdll"), "wine_get_version")) != nullptr) {
+	if (is_wine()) {
 		logFile << std::format("[{:%d-%m-%Y %X}] {}\n", std::chrono::system_clock::now(), message);
 	}
 	else {
