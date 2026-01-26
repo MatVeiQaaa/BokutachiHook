@@ -209,7 +209,7 @@ static void SendScore(const std::string reqBody, const std::string songName, boo
 			cpr::Bearer{ apiKey },
 			cpr::Body{ reqBody });
 		if (r.error.code != cpr::ErrorCode::OK || r.status_code / 100 == 5) {
-			Logger(std::format("Coulnd't POST: {}", r.error.message));
+			Logger(std::format("Couldn't POST: {}", r.error.message));
 			if (tryCount == tryMax) {
 				AddNotification(std::format("Failed to Send Score for {} after {} attempts!\n{}", songName, tryCount, r.error.message));
 			}
