@@ -142,6 +142,7 @@ static void Logger(std::string message)
 static void CheckTachiApi() {
 	std::string baseUrl = url.substr(0, url.find_first_of("/", 8));
 	cpr::Response r = cpr::Get(cpr::Url{ baseUrl + "/api/v1/status" },
+							   cpr::Timeout{ std::chrono::seconds(5) },
 							   cpr::Bearer{ apiKey });
 
 	if (r.error.code != cpr::ErrorCode::OK) {
@@ -211,6 +212,7 @@ static void SendScore(const std::string reqBody, const std::string songName, boo
 	int tryCount = 1;
 	while (tryCount <= tryMax) {
 		cpr::Response r = cpr::Post(cpr::Url{ isDan ? urlDan : url },
+			cpr::Timeout{ std::chrono::seconds(10) },
 			cpr::Header{ {"Content-Type", "application/json"} },
 			cpr::Bearer{ apiKey },
 			cpr::Body{ reqBody });
