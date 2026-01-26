@@ -172,7 +172,7 @@ static void CheckTachiApi() {
 	}
 	catch (json::exception& e)
 	{
-		// what now..?
+		Logger(std::format("JSON exception: {}", e.what()));
 	}
 	AddNotification("BokutachiIR Connected!");
 }
@@ -247,7 +247,7 @@ static void SendScore(const std::string reqBody, const std::string songName, boo
 		}
 		catch (json::exception& e)
 		{
-			// what now..?
+			Logger(std::format("JSON exception: {}", e.what()));
 		}
 		break;
 	}
