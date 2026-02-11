@@ -1,6 +1,7 @@
 #include "BokutachiHook.hpp"
 #include "Version.hpp"
 
+#include <iostream>
 #include <print>
 #include <format>
 #include <fstream>
@@ -18,7 +19,7 @@
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "Crypt32.lib")
 
-#define VERSION 2, 1, 2
+#define VERSION 2, 1, 3
 static constexpr const auto version = [] {
 class Version { public: unsigned int major; unsigned int minor; unsigned int patch; };
 								return Version{ VERSION };
@@ -123,8 +124,7 @@ static bool is_wine()
 
 static void Logger(std::string message)
 {
-	std::println("[BokutachiHook] {}", message);
-	fflush(stdout);
+	std::println(std::cout, "[BokutachiHook] {}", message);
 	std::ofstream logFile;
 	logFile.open("Bokutachi.log", std::ios_base::app);
 
@@ -388,15 +388,14 @@ static int __cdecl OnUpdateScoreDB(LR2::CSTR hash, LR2::STATUS* stat, void* sql,
 		AddNotification("Score not sent - Extra mode enabled");
 	}
 	else {
-		std::println("[BokutachiHook] Trying to send {}", hash.body);
-		std::fflush(stdout);
+		std::println(std::cout, "[BokutachiHook] Trying to send {}", hash.body);
 		std::thread(SendScore, std::move(message), std::move(songName), courseHash).detach();
 	}
 	return retVal;
 }
 
 void BokutachiHook::Init() {
-	std::println("[BokutachiHook] Initializing.");
+	std::println(std::cout, "[BokutachiHook] Initializing.");
 	while (!LR2::isInit) Sleep(1);
 
 	moduleBase = (uintptr_t)GetModuleHandle(0);
@@ -425,8 +424,7 @@ void BokutachiHook::Init() {
 
 	OnBeforeScreenFlipHk = safetyhook::create_mid(0x4367C6, OnBeforeScreenFlip);
 
-	std::println("[BokutachiHook] Init Done.");
-	std::fflush(stdout);
+	std::println(std::cout, "[BokutachiHook] Init Done.");
 	CheckTachiApi();
 	if (checkUpdates) CheckVersion();
 }
